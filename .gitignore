@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.claude/
+*.bak
+test_output.txt
