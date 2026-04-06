@@ -1,1 +1,0 @@
-Initial commit: gemini-delegate skill for Claude-to-Gemini task delegation
