@@ -79,6 +79,18 @@ Always verify Gemini's work before reporting to the user:
 2. Run tests or linters if applicable
 3. Fix any remaining issues Claude-side
 
+## Cross-Platform Note (Claude Code Bash vs cmd.exe)
+
+**The code blocks in this skill use cmd.exe syntax** — because Gemini CLI on Windows requires `shell: "cmd"` (PowerShell and git-bash can't find the `gemini` binary). These are **not** for Claude Code's Bash tool.
+
+| Operation | cmd.exe (Desktop Commander — use this) | Claude Code Bash (git-bash — do NOT use for Gemini) |
+|-----------|----------------------------------------|------------------------------------------------------|
+| Read file | `type file.md` | `cat file.md` |
+| Change dir | `cd /d C:\path` | `cd /c/path` |
+| Pipe to Gemini | `type task.md \| gemini -p "" -y` | N/A — launch via Desktop Commander |
+
+When invoking Gemini from a Claude Code session, use the Bash tool to call Desktop Commander or write the task file, then trigger the `gemini` command via `cmd /c` — do not call `gemini` directly in Claude Code's Bash.
+
 ## Platform Notes (Windows)
 
 | Issue | Solution |
