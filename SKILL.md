@@ -7,6 +7,41 @@ description: "Delegate token-heavy tasks to Gemini CLI (Google's coding agent). 
 
 Gemini CLI is a coding agent from Google, installed locally via npm. Use it as a worker agent: Claude plans, writes context, launches Gemini, and reviews output.
 
+---
+
+## ⚠️ SHELL COMPATIBILITY — READ THIS FIRST
+
+**Claude Code's Bash tool = git-bash (Unix shell) on Windows. It is NOT cmd.exe and NOT PowerShell.**
+
+**NEVER use CMD syntax in Bash tool calls:**
+
+| Task | ✅ Bash (Claude Code) | ❌ CMD (NEVER in Bash) |
+|------|----------------------|----------------------|
+| Change directory | `cd ~/project` | `cd /d C:\project` |
+| Read a file | `cat file.md` | `type file.md` |
+| List files | `ls` | `dir` |
+| Path separator | `/` forward slash | `\` backslash |
+
+**`cd /d` is CMD-only. In bash it fails: `bash: cd: /d: No such file or directory`.**
+**`type file.md` is CMD-only. In bash use `cat file.md`.**
+
+### Gemini PATH in git-bash
+Gemini CLI is installed via npm. If `gemini` is not found in git-bash, try:
+```bash
+# Check if gemini is in PATH
+which gemini 2>/dev/null || echo "not found"
+
+# If not found, use the full npm path
+/c/Users/wenyu/AppData/Roaming/npm/gemini -p "" -y
+```
+
+If gemini still can't be reached from git-bash, use Desktop Commander MCP with `shell: "cmd"` as a fallback (see Desktop Commander section below).
+
+> Desktop Commander MCP users: use `shell: "cmd"` + `cd /d` in that specific context.
+> Claude Code Bash tool users: always use Unix syntax; use full path if needed.
+
+---
+
 ## When to Delegate
 
 - **Chinese/CJK content**: financial reports, Threads posts, translations — Gemini handles 繁體中文 fluently
@@ -18,27 +53,38 @@ Gemini CLI is a coding agent from Google, installed locally via npm. Use it as a
 
 Keep in Claude: architecture decisions, security review, multi-subsystem debugging, final approval.
 
-## Invocation Syntax (Windows — CRITICAL)
+## Invocation Syntax (Claude Code Bash — PREFERRED)
 
 On Windows, Gemini CLI has a quirk: passing text directly to `-p` causes a
 "positional + -p conflict" error. The reliable patterns are:
 
 ```bash
 # Pattern 1: Pipe prompt via echo (short prompts)
-echo Your prompt here | gemini -p "" -y
+echo "Your prompt here" | gemini -p "" -y
 
-# Pattern 2: Pipe context file via type (complex tasks — PREFERRED)
-type C:\path\to\task.md | gemini -p "" -y
+# Pattern 2: Pipe context file via cat (complex tasks — PREFERRED)
+cat .ai/task.md | gemini -p "" -y
 
-# Pattern 3: Redirect output to file (avoids UTF-8 garbling)
-type task.md | gemini -p "" -y > output.md 2>&1
+# Pattern 3: From a specific directory with output capture
+cd ~/mispricing-engine && cat .ai/task.md | gemini -p "" -y > .ai/output.md 2>&1
+
+# Pattern 4: Full path (no cd needed)
+cat ~/mispricing-engine/.ai/task.md | gemini -p "" -y > ~/mispricing-engine/.ai/output.md 2>&1
 ```
 
-**Key rules:**
-- Always use `shell: "cmd"` in Desktop Commander (PowerShell can't find gemini)
-- Always use `-p ""` (empty string) when piping stdin — never `-p "actual text"`
+**Key rules (bash):**
+- Always use `-p ""` (empty string) when piping stdin — never `-p "actual text"` on Windows
 - Always include `-y` (YOLO mode) for non-interactive auto-approval
-- Set `timeout_ms: 120000` or higher — Gemini tasks take 30-120+ seconds
+- Use `cat` to read files — never `type`
+- Use `cd ~/path` or full Unix paths — never `cd /d C:\path`
+- Redirect output to a file if capturing CJK content (avoids terminal garbling)
+
+### Desktop Commander MCP (cmd shell — fallback only)
+If `gemini` is not accessible from git-bash, use Desktop Commander MCP with cmd shell:
+```
+shell: "cmd"
+cd /d C:\Users\wenyu\project && type task.md | gemini -p "" -y
+```
 
 ## Delegation Workflow
 
@@ -65,11 +111,17 @@ Create a task file with everything Gemini needs. Be explicit — Gemini has no a
 - Save results to [specific paths]
 ```
 
-### Step 2: Launch Gemini
+Save to `.ai/gemini_task_<name>.md`.
+
+### Step 2: Launch Gemini (from Claude Code Bash)
 
 ```bash
-# cd to the working directory first, then pipe the task
-cd /d C:\Users\wenyu\project && type task.md | gemini -p "" -y
+cat .ai/gemini_task_<name>.md | gemini -p "" -y
+```
+
+With output captured to file:
+```bash
+cat .ai/gemini_task_<name>.md | gemini -p "" -y > .ai/gemini_result_<name>.md 2>&1
 ```
 
 ### Step 3: Review Output
@@ -79,35 +131,22 @@ Always verify Gemini's work before reporting to the user:
 2. Run tests or linters if applicable
 3. Fix any remaining issues Claude-side
 
-## Cross-Platform Note (Claude Code Bash vs cmd.exe)
+## Platform Notes
 
-**The code blocks in this skill use cmd.exe syntax** — because Gemini CLI on Windows requires `shell: "cmd"` (PowerShell and git-bash can't find the `gemini` binary). These are **not** for Claude Code's Bash tool.
-
-| Operation | cmd.exe (Desktop Commander — use this) | Claude Code Bash (git-bash — do NOT use for Gemini) |
-|-----------|----------------------------------------|------------------------------------------------------|
-| Read file | `type file.md` | `cat file.md` |
-| Change dir | `cd /d C:\path` | `cd /c/path` |
-| Pipe to Gemini | `type task.md \| gemini -p "" -y` | N/A — launch via Desktop Commander |
-
-When invoking Gemini from a Claude Code session, use the Bash tool to call Desktop Commander or write the task file, then trigger the `gemini` command via `cmd /c` — do not call `gemini` directly in Claude Code's Bash.
-
-## Platform Notes (Windows)
-
-| Issue | Solution |
-|-------|----------|
-| PowerShell can't find `gemini` | Use `shell: "cmd"` in Desktop Commander |
-| `-p "text"` fails with conflict error | Use stdin pipe: `echo text \| gemini -p "" -y` |
-| Chinese characters garbled in terminal | Redirect to file: `... -y > output.md 2>&1` then read file |
-| Sandbox blocks file access | Don't use `--sandbox` when Gemini needs files outside CWD |
-| Process hangs / too slow | Set timeout 120s+; kill stale node processes before launching |
+| Issue | Bash solution | Desktop Commander solution |
+|-------|--------------|---------------------------|
+| `gemini` not found in git-bash | Use full npm path: `/c/Users/wenyu/AppData/Roaming/npm/gemini` | Use `shell: "cmd"` |
+| `-p "text"` fails | Use stdin pipe: `echo "text" \| gemini -p "" -y` | Same |
+| Chinese chars garbled | Redirect to file: `... -y > output.md 2>&1` then read file | Same |
+| Sandbox blocks file access | Don't use `--sandbox` when Gemini needs files outside CWD | Same |
+| Process hangs / too slow | Kill stale node processes; set timeout 120s+ | Same |
 
 ## Known Limitations
 
 1. **No shared context**: Gemini can't see Claude's conversation — always write a complete context file
-2. **Sandbox restriction**: `--sandbox` prevents accessing files outside workspace. Skip it for cross-directory tasks
-3. **Write persistence**: Verify files actually changed on disk after runs — occasionally writes don't persist
-4. **Windows quoting**: Never pass prompt text directly to `-p` flag on Windows — always pipe via stdin
-5. **Token cost**: Gemini is free/cheap — prefer it over Claude for bulk generation
+2. **Write persistence**: Verify files actually changed on disk after runs — occasionally writes don't persist
+3. **Windows quoting**: Never pass prompt text directly to `-p` flag on Windows — always pipe via stdin
+4. **Token cost**: Gemini is free/cheap — prefer it over Claude for bulk generation
 
 ## Task Routing Decision Tree
 
