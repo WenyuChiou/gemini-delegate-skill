@@ -1,163 +1,149 @@
 ---
 name: gemini-delegate
-description: "Delegate token-heavy tasks to Gemini CLI (Google's coding agent). Use this skill whenever Claude needs to offload bulk code generation, file refactoring, Chinese/CJK content writing, research synthesis, or any task involving 100+ lines of output. Triggers: 'use gemini', 'delegate to gemini', 'gemini cli', batch file edits, large text generation, CJK reports, or when Claude is orchestrating and needs a worker agent. Also use when the CLAUDE.md delegation rules say to route work to Gemini."
+description: "Delegate CJK/Chinese content tasks to Gemini CLI. Use this skill for writing Chinese reports, Threads posts (美洲更新), comments, translations, and any task requiring native-quality Traditional Chinese output. Gemini handles the content generation while Claude plans, reviews, and integrates."
 ---
 
-# Gemini CLI Delegation
+# Gemini Delegate Skill
 
-Gemini CLI is a coding agent from Google, installed locally via npm. Use it as a worker agent: Claude plans, writes context, launches Gemini, and reviews output.
+You are Claude acting as a **supervisor**. You plan, evaluate, and review. Gemini does the CJK/Chinese writing.
 
----
+## ⛔ CRITICAL: Shell Compatibility (READ FIRST)
 
-## ⚠️ SHELL COMPATIBILITY — READ THIS FIRST
+**Claude Code's Bash tool runs git-bash (Unix shell) on Windows — NOT cmd.exe, NOT PowerShell.**
 
-**Claude Code's Bash tool = git-bash (Unix shell) on Windows. It is NOT cmd.exe and NOT PowerShell.**
+### NEVER use these CMD-only commands in Bash:
+| ❌ BANNED (cmd.exe only) | ✅ Use instead (bash) |
+|--------------------------|----------------------|
+| `cd /d C:\path` | `cd /c/Users/wenyu/path` or `cd "$HOME/path"` |
+| `type file.txt` | `cat file.txt` |
+| `dir` | `ls` |
+| `copy src dst` | `cp src dst` |
+| `del file` | `rm file` |
+| `md dir` | `mkdir -p dir` |
+| `set VAR=value` | `export VAR=value` |
+| `%VAR%` | `$VAR` or `${VAR}` |
+| `ren old new` | `mv old new` |
+| `cls` | `clear` |
 
-**NEVER use CMD syntax in Bash tool calls:**
+### Path format in Bash
+- Windows: `C:\Users\wenyu\mispricing-engine` → Bash: `/c/Users/wenyu/mispricing-engine` or `~/mispricing-engine`
+- **NEVER** use backslashes `\` in bash paths — always use forward slashes `/`
+- **NEVER** use `cd /d` — this is CMD syntax and WILL fail in bash
 
-| Task | ✅ Bash (Claude Code) | ❌ CMD (NEVER in Bash) |
-|------|----------------------|----------------------|
-| Change directory | `cd ~/project` | `cd /d C:\project` |
-| Read a file | `cat file.md` | `type file.md` |
-| List files | `ls` | `dir` |
-| Path separator | `/` forward slash | `\` backslash |
+### When to use PowerShell
+Only use PowerShell syntax (with `powershell` code fence) when calling `.ps1` scripts directly via Desktop Commander or Windows-MCP. All other code blocks in this skill use Unix bash.
 
-**`cd /d` is CMD-only. In bash it fails: `bash: cd: /d: No such file or directory`.**
-**`type file.md` is CMD-only. In bash use `cat file.md`.**
+## When to Delegate to Gemini
 
-### Gemini PATH in git-bash
-Gemini CLI is installed via npm. If `gemini` is not found in git-bash, try:
-```bash
-# Check if gemini is in PATH
-which gemini 2>/dev/null || echo "not found"
+### Delegate to Gemini (good for)
+- Traditional Chinese content (reports, analyses, social media posts)
+- 美洲更新 (Americas Update) weekly Threads series
+- CJK translation with domain-specific terminology
+- Chinese-language summaries of English analysis
+- Any content requiring native-quality Chinese output
+- Long-form Chinese writing (>200 characters)
 
-# If not found, use the full npm path
-/c/Users/wenyu/AppData/Roaming/npm/gemini -p "" -y
-```
+### Keep in Claude (bad for Gemini)
+- Architecture decisions, code review, debugging
+- English-only content
+- Tasks requiring conversation history or memory context
+- Security-sensitive operations
+- Multi-step workflows with complex dependencies
+- Code generation (Gemini's coding is weaker)
 
-If gemini still can't be reached from git-bash, use Desktop Commander MCP with `shell: "cmd"` as a fallback (see Desktop Commander section below).
+## Core Workflow: Context File Pattern
 
-> Desktop Commander MCP users: use `shell: "cmd"` + `cd /d` in that specific context.
-> Claude Code Bash tool users: always use Unix syntax; use full path if needed.
-
----
-
-## When to Delegate
-
-- **Chinese/CJK content**: financial reports, Threads posts, translations — Gemini handles 繁體中文 fluently
-- **Bulk code generation**: 100+ lines of new code, boilerplate, migrations
-- **Multi-file refactors**: renaming across files, pattern replacement, batch edits
-- **Research synthesis**: summarizing papers, generating literature reviews
-- **README / documentation**: bilingual docs, long-form technical writing
-- **JS/React/frontend work**: component generation, UI code
-
-Keep in Claude: architecture decisions, security review, multi-subsystem debugging, final approval.
-
-## Invocation Syntax (Claude Code Bash — PREFERRED)
-
-On Windows, Gemini CLI has a quirk: passing text directly to `-p` causes a
-"positional + -p conflict" error. The reliable patterns are:
-
-```bash
-# Pattern 1: Pipe prompt via echo (short prompts)
-echo "Your prompt here" | gemini -p "" -y
-
-# Pattern 2: Pipe context file via cat (complex tasks — PREFERRED)
-cat .ai/task.md | gemini -p "" -y
-
-# Pattern 3: From a specific directory with output capture
-cd ~/mispricing-engine && cat .ai/task.md | gemini -p "" -y > .ai/output.md 2>&1
-
-# Pattern 4: Full path (no cd needed)
-cat ~/mispricing-engine/.ai/task.md | gemini -p "" -y > ~/mispricing-engine/.ai/output.md 2>&1
-```
-
-**Key rules (bash):**
-- Always use `-p ""` (empty string) when piping stdin — never `-p "actual text"` on Windows
-- Always include `-y` (YOLO mode) for non-interactive auto-approval
-- Use `cat` to read files — never `type`
-- Use `cd ~/path` or full Unix paths — never `cd /d C:\path`
-- Redirect output to a file if capturing CJK content (avoids terminal garbling)
-
-### Desktop Commander MCP (cmd shell — fallback only)
-If `gemini` is not accessible from git-bash, use Desktop Commander MCP with cmd shell:
-```
-shell: "cmd"
-cd /d C:\Users\wenyu\project && type task.md | gemini -p "" -y
-```
-
-## Delegation Workflow
-
-### Step 1: Write a Context File
-
-Create a task file with everything Gemini needs. Be explicit — Gemini has no access to Claude's conversation.
+### Step 1: Claude writes the context file
+Save to `.ai/gemini_task_<name>.md` in the repo:
 
 ```markdown
-# Task: [clear title]
-
-## Goal
-[What to produce]
+# Task: <descriptive name>
 
 ## Context
-[Relevant background, current state, constraints]
+- Repo: ~/mispricing-engine
+- Key files to read: <list paths>
+- Output file: <where to write result>
 
-## Files to Modify
-- `path/to/file.py` — what to change and why
+## Language
+- Output language: Traditional Chinese (繁體中文)
+- Tone: <formal/casual/hedged-framework-driven>
+- Audience: <target audience>
 
-## Requirements
-- [Specific requirements, format, style]
+## Instructions
+<Clear, step-by-step instructions in English or Chinese>
+
+## Constraints
+- Do not modify files outside the listed paths
+- Follow existing terminology conventions
+- Use hedged language for market predictions (per feedback_threads_tone)
 
 ## Output
-- Save results to [specific paths]
+- Save output to <path>
 ```
 
-Save to `.ai/gemini_task_<name>.md`.
-
-### Step 2: Launch Gemini (from Claude Code Bash)
-
+### Step 2: Launch Gemini (synchronous, from Claude Code Bash)
 ```bash
-cat .ai/gemini_task_<name>.md | gemini -p "" -y
+# Direct synchronous call
+bash .claude/skills/gemini-delegate/scripts/run_gemini.sh \
+  --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
+  --log-file .ai/gemini_log_<name>.txt
 ```
 
-With output captured to file:
+Or call the PowerShell script directly:
+```powershell
+# From PowerShell only (NOT from Claude Code Bash)
+& "C:\Users\wenyu\mispricing-engine\.claude\skills\gemini-delegate\scripts\run_gemini.ps1" `
+    -Prompt "Read .ai/gemini_task_<name>.md and execute all instructions." `
+    -LogFile "C:\Users\wenyu\mispricing-engine\.ai\gemini_log_<name>.txt"
+```
+
+### Step 3: Check result
 ```bash
-cat .ai/gemini_task_<name>.md | gemini -p "" -y > .ai/gemini_result_<name>.md 2>&1
+# Check for fallback sentinel first
+if [ -f ".ai/gemini_log_<name>.txt.fallback_claude" ]; then
+    echo "Quota exceeded — doing task myself"
+elif [ -f ".ai/gemini_log_<name>.txt.done" ]; then
+    cat ".ai/gemini_log_<name>.txt"
+fi
 ```
 
-### Step 3: Review Output
+### Step 4: Claude reviews
+- Read the output
+- Check Chinese quality (terminology, tone, accuracy)
+- Verify sensitive word replacements (per feedback_thread_sensitive_words)
+- If 80%+ correct: fix remaining issues directly
+- If fundamentally wrong: rewrite context file and re-run
 
-Always verify Gemini's work before reporting to the user:
-1. Check that target files were actually modified on disk (not just logged)
-2. Run tests or linters if applicable
-3. Fix any remaining issues Claude-side
+## Script Parameters
 
-## Platform Notes
+### run_gemini.sh
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--prompt` | (required) | Task prompt |
+| `--repo` | `~/mispricing-engine` | Working directory |
+| `--model` | `gemini-2.5-pro` | Gemini model |
+| `--log-file` | `<repo>/.ai/gemini_output.txt` | Log file path |
 
-| Issue | Bash solution | Desktop Commander solution |
-|-------|--------------|---------------------------|
-| `gemini` not found in git-bash | Use full npm path: `/c/Users/wenyu/AppData/Roaming/npm/gemini` | Use `shell: "cmd"` |
-| `-p "text"` fails | Use stdin pipe: `echo "text" \| gemini -p "" -y` | Same |
-| Chinese chars garbled | Redirect to file: `... -y > output.md 2>&1` then read file | Same |
-| Sandbox blocks file access | Don't use `--sandbox` when Gemini needs files outside CWD | Same |
-| Process hangs / too slow | Kill stale node processes; set timeout 120s+ | Same |
+### run_gemini.ps1
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `-Prompt` | (required) | Task prompt |
+| `-Repo` | `C:\Users\wenyu\mispricing-engine` | Working directory |
+| `-Model` | `gemini-2.5-pro` | Gemini model |
+| `-LogFile` | `<Repo>\.ai\gemini_output.txt` | Log file path |
 
-## Known Limitations
+## Sensitive Word Replacements (Threads v4)
 
-1. **No shared context**: Gemini can't see Claude's conversation — always write a complete context file
-2. **Write persistence**: Verify files actually changed on disk after runs — occasionally writes don't persist
-3. **Windows quoting**: Never pass prompt text directly to `-p` flag on Windows — always pipe via stdin
-4. **Token cost**: Gemini is free/cheap — prefer it over Claude for bulk generation
+When generating Threads posts, apply these replacements:
+- Check `feedback_thread_sensitive_words` memory for current list
+- Common replacements: avoid absolute predictions, use hedged framework-driven language
+- Never use "一定", "保證", "必然" — use "可能", "傾向", "框架顯示"
 
-## Task Routing Decision Tree
+## Important Caveats
 
-```
-Planning / architecture / security review?  → Keep in Claude
-100+ lines of code/text generation?         → Delegate to Gemini
-Chinese/CJK content?                        → Delegate to Gemini
-Multi-file batch edit or refactor?          → Delegate to Gemini
-Otherwise?                                  → Handle in Claude
-```
-
-## Examples
-
-See `references/examples.md` for complete delegation examples.
+- Gemini has NO persistent memory — always give full context via file paths
+- Gemini cannot read conversation history — summarize decisions in the context file
+- Gemini's coding ability is weaker than Claude/Codex — do NOT delegate code tasks
+- Always verify Gemini output for factual accuracy before publishing
+- The `.ai/` directory is gitignored — safe for task files and logs
+- If `.fallback_claude` sentinel appears, do the task yourself immediately
