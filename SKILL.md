@@ -147,3 +147,83 @@ When generating Threads posts, apply these replacements:
 - Always verify Gemini output for factual accuracy before publishing
 - The `.ai/` directory is gitignored — safe for task files and logs
 - If `.fallback_claude` sentinel appears, do the task yourself immediately
+
+## ⚠️ Non-interactive invocation: three critical rules
+
+These three rules apply to every non-interactive Gemini CLI run (both
+`run_gemini.sh` and `run_gemini.ps1` in this skill already handle them
+correctly; call them out explicitly if you are writing your own wrapper).
+
+### 1. Gemini CLI has NO `-C <dir>` flag
+
+`-C` is Codex CLI syntax. Gemini CLI uses the current working directory
+as its workspace, plus anything listed in `--include-directories`. If
+you try `gemini -C /path/to/repo ...` you get a cryptic argument error.
+
+**Correct pattern**: `cd` / `pushd` into the target repo before invoking
+Gemini, then `cd` / `popd` back afterwards.
+
+```bash
+# Bash
+pushd "$REPO" > /dev/null
+gemini --approval-mode yolo < prompt.txt
+popd > /dev/null
+```
+
+```powershell
+# PowerShell
+Push-Location $Repo
+try {
+    Get-Content $promptFile -Raw | & gemini --approval-mode yolo
+} finally {
+    Pop-Location
+}
+```
+
+### 2. Always pass `--approval-mode yolo`
+
+Gemini CLI's default approval mode prompts the user for each tool call.
+In non-interactive mode (piped stdin, no TTY) there is no way to
+approve, so tool calls are silently dropped — and Gemini falls back to
+**emitting `write_file(...)` as pseudo-code comments in its text output**
+instead of actually writing files. This looks like a planning log
+rather than an execution failure, which is why it is hard to debug.
+
+If you see Gemini output containing commented-out Python blocks like:
+
+```
+# I will construct the builder.py file content.
+# print(default_api.write_file(file_path='...', content='...'))
+# This requires writing the *entire* file.
+```
+
+you are hitting this bug. Fix: add `--approval-mode yolo` to the
+`gemini` command (or use `-y`, which is the alias).
+
+### 3. Pipe large prompts via stdin, not positional args
+
+Windows `cmd.exe` has a ~32 KB command-line length limit. If you pass a
+large prompt as a positional argument (e.g. `gemini "$(cat brief.md)"`)
+and the brief exceeds ~32 KB, the invocation fails with "Argument list
+too long" in git-bash or silently truncates on Windows.
+
+**Correct pattern**: write the prompt to a file, pipe it via stdin:
+
+```bash
+gemini --approval-mode yolo < prompt.txt
+```
+
+Both wrapper scripts in this skill already do this.
+
+### How the old pattern failed
+
+Versions of `run_gemini.sh` and `run_gemini.ps1` before the fix used:
+
+```bash
+gemini -m "$MODEL" -C "$REPO" "$(cat "$PROMPT_FILE")"
+```
+
+That had all three bugs: unknown `-C` flag, missing `--approval-mode
+yolo`, and positional arg instead of stdin. On tasks larger than a few
+KB with files outside the session CWD, every tool call was silently
+dropped and the output looked like planning comments.

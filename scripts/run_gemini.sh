@@ -84,8 +84,18 @@ GEMINI_BIN="${GEMINI_PATH:-gemini}"
 OUTPUT=""
 EXIT_CODE=0
 
-# Gemini CLI invocation — adjust flags as needed for your Gemini CLI version
-OUTPUT=$("$GEMINI_BIN" -m "$MODEL" -C "$REPO" "$(cat "$PROMPT_FILE")" 2>&1) || EXIT_CODE=$?
+# Gemini CLI invocation — three critical rules for non-interactive runs:
+#   1. Gemini CLI has NO `-C <dir>` flag (that is Codex CLI syntax). You must
+#      `cd` into the target workspace so Gemini's sandbox allows writes there.
+#   2. Must pass `--approval-mode yolo`. Default mode prompts for approval per
+#      tool call; in non-interactive mode those calls are silently skipped and
+#      Gemini falls back to emitting write_file() as pseudo-code comments
+#      instead of actually writing files.
+#   3. Pipe the prompt via stdin, not as a positional arg — positional args
+#      hit the ~32 KB Windows command-line length limit for large briefs.
+pushd "$REPO" > /dev/null
+OUTPUT=$("$GEMINI_BIN" -m "$MODEL" --approval-mode yolo < "$PROMPT_FILE" 2>&1) || EXIT_CODE=$?
+popd > /dev/null
 rm -f "$PROMPT_FILE"
 
 if is_quota_error "$OUTPUT" "$EXIT_CODE"; then

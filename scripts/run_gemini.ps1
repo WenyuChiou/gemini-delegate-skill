@@ -44,14 +44,29 @@ function Test-QuotaError {
 }
 
 # ── Run Gemini ────────────────────────────────────────────────────────────────
+# Three critical rules for non-interactive Gemini CLI runs:
+#   1. Gemini CLI has NO `-C <dir>` flag (that is Codex CLI syntax). Must
+#      Push-Location into the target workspace so Gemini's sandbox allows
+#      writes there.
+#   2. Must pass `--approval-mode yolo`. Default mode prompts for approval
+#      per tool call; in non-interactive mode those calls are silently
+#      skipped and Gemini falls back to emitting write_file() as pseudo-code
+#      comments instead of actually writing files.
+#   3. Pipe the prompt via stdin, not as a positional arg — positional args
+#      hit the ~32 KB Windows command-line length limit for large briefs.
+
 $promptFile = "$env:TEMP\gemini_prompt_$(Get-Random).txt"
 $Prompt | Out-File -FilePath $promptFile -Encoding utf8NoBOM
-$safePrompt = Get-Content $promptFile -Raw -Encoding utf8
-Remove-Item $promptFile -ErrorAction SilentlyContinue
 
 try {
-    $output   = & gemini -m $Model -C $Repo $safePrompt 2>&1 | Out-String
-    $exitCode = $LASTEXITCODE
+    Push-Location $Repo
+    try {
+        $output   = Get-Content $promptFile -Raw -Encoding utf8 | & gemini -m $Model --approval-mode yolo 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    } finally {
+        Pop-Location
+        Remove-Item $promptFile -ErrorAction SilentlyContinue
+    }
 
     if (Test-QuotaError -output $output -exitCode $exitCode) {
         Write-Warning "Gemini quota/rate-limit exceeded — creating .fallback_claude sentinel for Claude to handle"
