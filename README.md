@@ -50,6 +50,14 @@ This skill is designed for Claude (or any AI orchestrator) to read and follow. W
 3. Reviews and validates the output
 4. Reports results to the user
 
+## Known Limitations
+
+Gemini CLI 0.37+ occasionally exits with rc=0 even when its `write_file` tool failed mid-execution (`Error executing tool write_file: params must have required property 'file_path'`) or wrote partial / corrupted output silently. Always verify expected files exist on disk + are non-empty after `gemini` exits.
+
+This skill's wrapper scripts include `--verify-file PATH` (and optionally `--verify-sentinel TEXT`) to do this check automatically. See [SKILL.md → "Fourth rule"](SKILL.md) for the full failure-mode discussion.
+
+For translation tasks specifically: Gemini's output is reliably **B-grade**. Use it for first-draft generation, then have Claude do a polish pass for tone, banned words, and terminology consistency before shipping.
+
 ## License
 
 MIT

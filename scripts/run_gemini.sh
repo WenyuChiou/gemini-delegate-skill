@@ -5,13 +5,17 @@
 #   ./run_gemini.sh --prompt "your task here" [options]
 #
 # Options:
-#   --prompt <text>      Task prompt (required)
-#   --repo <path>        Repo working directory (default: ~/mispricing-engine)
-#   --model <id>         Gemini model (default: gemini-2.5-pro)
-#   --log-file <path>    Where to write output log (default: <repo>/.ai/gemini_output.txt)
+#   --prompt <text>             Task prompt (required)
+#   --repo <path>               Repo working directory (default: ~/mispricing-engine)
+#   --model <id>                Gemini model (default: gemini-2.5-pro)
+#   --log-file <path>           Where to write output log (default: <repo>/.ai/gemini_output.txt)
+#   --verify-file <path>        File path that MUST exist + be non-empty after gemini exits
+#                               (repeatable; required because Gemini sometimes exits 0
+#                                even when write_file calls fail mid-execution).
+#   --verify-sentinel <text>    Optional: string that MUST appear in every --verify-file
 #
 # Fallback chain: Gemini → .fallback_claude sentinel (Claude handles it)
-# Exit codes: 0 = success or fallback sentinel written, 1 = hard failure
+# Exit codes: 0 = success or fallback sentinel written, 1 = hard failure or verification failure
 
 set -euo pipefail
 
@@ -20,14 +24,18 @@ PROMPT=""
 REPO="${HOME}/mispricing-engine"
 MODEL="gemini-2.5-pro"
 LOG_FILE=""
+VERIFY_FILES=()    # paths to verify exist + non-empty after gemini exits
+VERIFY_SENTINEL="" # optional: string that MUST appear in each verified file
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --prompt)       PROMPT="$2";      shift 2 ;;
-        --repo)         REPO="$2";        shift 2 ;;
-        --model)        MODEL="$2";       shift 2 ;;
-        --log-file)     LOG_FILE="$2";    shift 2 ;;
+        --prompt)           PROMPT="$2";            shift 2 ;;
+        --repo)             REPO="$2";              shift 2 ;;
+        --model)            MODEL="$2";             shift 2 ;;
+        --log-file)         LOG_FILE="$2";          shift 2 ;;
+        --verify-file)      VERIFY_FILES+=("$2");   shift 2 ;;
+        --verify-sentinel)  VERIFY_SENTINEL="$2";   shift 2 ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
 done
@@ -114,6 +122,34 @@ if [[ "$EXIT_CODE" -ne 0 ]]; then
     echo "Gemini hard failure (exit $EXIT_CODE)" >&2
     echo "$OUTPUT" > "$ERROR_PATH"
     exit 1
+fi
+
+# Success — but FIRST verify expected files exist on disk
+# (Gemini sometimes exits 0 even when write_file calls failed mid-execution
+#  due to internal tool-schema bugs. See SKILL.md "Fourth rule".)
+if [[ "${#VERIFY_FILES[@]}" -gt 0 ]]; then
+    VERIFY_FAIL=0
+    for f in "${VERIFY_FILES[@]}"; do
+        if [[ ! -s "$f" ]]; then
+            echo "VERIFICATION FAILED: $f missing or empty" >&2
+            VERIFY_FAIL=1
+            continue
+        fi
+        if [[ -n "$VERIFY_SENTINEL" ]] && ! grep -q -- "$VERIFY_SENTINEL" "$f"; then
+            echo "VERIFICATION FAILED: $f missing sentinel '$VERIFY_SENTINEL'" >&2
+            VERIFY_FAIL=1
+        fi
+    done
+    if [[ "$VERIFY_FAIL" -eq 1 ]]; then
+        {
+            echo "[VERIFICATION FAILED at $(date -u +%Y-%m-%dT%H:%M:%SZ)]"
+            echo "[MODEL_USED: gemini/$MODEL]"
+            echo "$OUTPUT"
+        } > "$LOG_PATH"
+        echo "VERIFY_FAILED|gemini/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
+        exit 1
+    fi
+    echo "Verified ${#VERIFY_FILES[@]} file(s) exist + non-empty${VERIFY_SENTINEL:+ + contain sentinel}." >&2
 fi
 
 # Success

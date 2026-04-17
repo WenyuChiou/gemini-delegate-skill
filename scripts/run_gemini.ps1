@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory=$true)][string]$Prompt,
     [string]$Repo = "C:\Users\wenyu\mispricing-engine",
     [string]$Model = "gemini-2.5-pro",
-    [string]$LogFile = ""
+    [string]$LogFile = "",
+    [string[]]$VerifyFile = @(),
+    [string]$VerifySentinel = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,6 +77,33 @@ try {
         "FALLBACK_TO_CLAUDE|$(Get-Date -Format o)"  | Out-File $fallbackPath -Encoding utf8
         "FALLBACK|$(Get-Date -Format o)"            | Out-File $donePath     -Encoding utf8
         exit 0
+    }
+
+    # Success — but FIRST verify expected files exist on disk
+    # (Gemini sometimes exits 0 even when write_file calls failed mid-execution
+    #  due to internal tool-schema bugs. See SKILL.md "Fourth rule".)
+    if ($VerifyFile.Count -gt 0) {
+        $verifyFail = $false
+        foreach ($f in $VerifyFile) {
+            if (!(Test-Path $f) -or (Get-Item $f).Length -eq 0) {
+                Write-Warning "VERIFICATION FAILED: $f missing or empty"
+                $verifyFail = $true
+                continue
+            }
+            if ($VerifySentinel) {
+                $content = Get-Content $f -Raw -Encoding utf8
+                if ($content -notlike "*$VerifySentinel*") {
+                    Write-Warning "VERIFICATION FAILED: $f missing sentinel '$VerifySentinel'"
+                    $verifyFail = $true
+                }
+            }
+        }
+        if ($verifyFail) {
+            "[VERIFICATION FAILED at $(Get-Date -Format o)]`n[MODEL_USED: gemini/$Model]`n$output" | Out-File $logPath -Encoding utf8
+            "VERIFY_FAILED|gemini/$Model|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
+            exit 1
+        }
+        Write-Host "Verified $($VerifyFile.Count) file(s) exist + non-empty$(if ($VerifySentinel) { ' + contain sentinel' })."
     }
 
     # Success — log model used

@@ -227,3 +227,72 @@ That had all three bugs: unknown `-C` flag, missing `--approval-mode
 yolo`, and positional arg instead of stdin. On tasks larger than a few
 KB with files outside the session CWD, every tool call was silently
 dropped and the output looked like planning comments.
+
+---
+
+## ⚠️ FOURTH RULE (added 2026-04-17): Verify file writes after Gemini exits
+
+**Even when the three rules above are followed and Gemini exits cleanly (rc=0), expected output files may be missing or partial on disk.** Two failure modes observed in production use of Gemini CLI 0.37+:
+
+### Failure mode 1 — `write_file: params must have required property 'file_path'`
+
+Gemini occasionally hits an internal tool-schema mismatch on the **second or later** `write_file` call within a single invocation. Symptom in stderr:
+
+```
+Error executing tool write_file: params must have required property 'file_path'
+```
+
+The first `write_file` call usually succeeds before this happens, so you might end up with **partial deliverables** — first file written, subsequent files missing — and Gemini still exits 0 because the error was caught internally.
+
+### Failure mode 2 — silent partial writes
+
+Gemini can decide to "abandon" a write halfway through (rate-limit retry, model decided to re-plan) and the file ends up on disk with bad indentation, missing imports, or truncated mid-function. Process exits 0 with no stderr signal.
+
+### The fix: post-execution verification
+
+**ALWAYS check expected output files exist on disk + are non-empty + contain a sentinel string after `gemini` exits, regardless of stderr.** Treat Gemini's exit code as advisory, not authoritative.
+
+Bash pattern:
+
+```bash
+EXPECTED_FILES=(
+    "docs/output1.md"
+    "docs/output2.md"
+)
+SENTINEL="## My Required Heading"  # something that MUST appear in the output
+
+cat brief.md | gemini --approval-mode yolo
+GEMINI_RC=$?
+
+# Verification (run regardless of exit code)
+for f in "${EXPECTED_FILES[@]}"; do
+    if [[ ! -s "$f" ]]; then
+        echo "VERIFICATION FAILED: $f missing or empty" >&2
+        exit 1
+    fi
+    if ! grep -q "$SENTINEL" "$f"; then
+        echo "VERIFICATION FAILED: $f missing sentinel '$SENTINEL'" >&2
+        exit 1
+    fi
+done
+echo "All ${#EXPECTED_FILES[@]} files verified."
+```
+
+This skill's wrapper scripts (`scripts/run_gemini.sh` + `.ps1`) include a `--verify-file PATH` flag that does this check automatically — see those scripts for the canonical implementation.
+
+### Translation-quality caveat (also 2026-04-17)
+
+When Gemini IS invoked correctly and DOES write the file successfully, the **content quality for translation tasks is B-grade at best**:
+
+- Banned-words lists in the brief are routinely ignored
+- Tone is consistently "translated-from-English" — not native target-language idiom
+- Terminology drift across files even when the brief asks for consistency
+- Dates in changelogs are wrong (Gemini guesses based on training, doesn't read system date)
+
+**Workflow that works for translation:**
+1. Use Gemini for first-draft generation (saves Claude ~60% of typing time)
+2. Claude reviews EVERY translated file: banned-words audit, terminology consistency check, line-by-line accuracy spot-check
+3. Claude rewrites the worst ~25% of lines manually
+4. Run with `--verify-file` to catch missing/empty outputs immediately
+
+**Don't ship Gemini's translation output as final without Claude polish.** Cost savings vs Claude-direct translation are real but modest; quality without polish is not production-grade.
