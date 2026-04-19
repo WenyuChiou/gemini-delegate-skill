@@ -3,6 +3,22 @@
 All examples use bash syntax (Claude Code Bash tool = git-bash on Windows).
 Never use `cd /d` or `type` — those are CMD-only. Use `cd ~/path` and `cat` instead.
 
+## Recommended: use the wrapper script
+
+The `run_gemini.sh` script handles all three critical rules automatically
+(pushd, --approval-mode yolo, stdin pipe) plus quota fallback and
+file-write verification. Prefer it over raw `gemini` calls.
+
+```bash
+bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
+  --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
+  --repo ~/mispricing-engine \
+  --log-file .ai/gemini_log_<name>.txt \
+  --verify-file docs/output.md
+```
+
+---
+
 ## Example 1: Chinese Financial Report
 
 **Context file** (`.ai/gemini_task_report.md`):
@@ -27,11 +43,24 @@ Write a ~800 word Threads post in 繁體中文 covering this week's macro develo
 - Use hedged language: 可能、或許、值得觀察
 - Reference frameworks by name (they ARE the hook)
 - No sensitive words: use 遠程武器 not 飛彈, 地緣緊張 not 戰爭
+- Output file: .ai/gemini_result_report.md
 ```
 
-**Launch**:
+**Launch via wrapper** (recommended):
 ```bash
-cat .ai/gemini_task_report.md | gemini -p "" -y > .ai/gemini_result_report.md 2>&1
+bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
+  --prompt "Read .ai/gemini_task_report.md and execute all instructions inside." \
+  --repo ~/mispricing-engine \
+  --log-file .ai/gemini_log_report.txt \
+  --verify-file .ai/gemini_result_report.md
+```
+
+**Or raw invocation** (if not using the wrapper):
+```bash
+# Must cd first — Gemini has no -C flag
+cd ~/mispricing-engine
+# Must use --approval-mode yolo and stdin pipe
+gemini --approval-mode yolo < .ai/gemini_task_report.md
 ```
 
 ## Example 2: Multi-File Python Refactor
@@ -58,17 +87,22 @@ Move all magic numbers from these files into strategy_constants.py:
 
 **Launch** (from project directory):
 ```bash
-cd ~/mispricing-engine && cat .ai/gemini_task_refactor.md | gemini -p "" -y
+cd ~/mispricing-engine
+gemini --approval-mode yolo < .ai/gemini_task_refactor.md
 ```
 
 ## Example 3: Bilingual README
 
 ```bash
-cd ~/mispricing-engine && gemini -p "Read the SKILL.md in the current directory. Create README.md (English) and README_zh-TW.md (Traditional Chinese) with: language toggle link at top, Features section (5 categories), Setup instructions, Project Structure tree. Keep both versions structurally identical." -y
+cd ~/mispricing-engine
+printf 'Read the SKILL.md in the current directory. Create README.md (English) and README_zh-TW.md (Traditional Chinese) with: language toggle link at top, Features section (5 categories), Setup instructions, Project Structure tree. Keep both versions structurally identical.' \
+  | gemini --approval-mode yolo
 ```
 
 ## Example 4: React Component Generation
 
 ```bash
-gemini -p "Create a React component at src/components/PortfolioHeatmap.jsx that displays a heatmap of ETF returns. Props: data (array of {ticker, return_1d, return_1w, return_1m}). Use Tailwind for styling. Include color scale from red (-5%) through white (0%) to green (+5%). Add a tooltip on hover showing exact values." -y
+cd ~/my-project
+printf 'Create a React component at src/components/PortfolioHeatmap.jsx that displays a heatmap of ETF returns. Props: data (array of {ticker, return_1d, return_1w, return_1m}). Use Tailwind for styling. Include color scale from red (-5%%) through white (0%%) to green (+5%%). Add a tooltip on hover showing exact values.' \
+  | gemini --approval-mode yolo
 ```

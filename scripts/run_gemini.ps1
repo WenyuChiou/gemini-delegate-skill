@@ -81,7 +81,7 @@ try {
 
     # Success — but FIRST verify expected files exist on disk
     # (Gemini sometimes exits 0 even when write_file calls failed mid-execution
-    #  due to internal tool-schema bugs. See SKILL.md "Fourth rule".)
+    #  due to internal tool-schema bugs.)
     if ($VerifyFile.Count -gt 0) {
         $verifyFail = $false
         foreach ($f in $VerifyFile) {

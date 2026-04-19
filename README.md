@@ -6,7 +6,7 @@ A Claude skill for delegating token-heavy tasks to Google's Gemini CLI agent. Cl
 
 ## Features
 
-**Task Delegation** — Non-interactive headless execution via `gemini -p` with YOLO auto-approval
+**Task Delegation** — Non-interactive headless execution via stdin pipe with `--approval-mode yolo`
 
 **CJK Content** — Native support for Chinese/Japanese/Korean text generation, financial reports, social media posts
 
@@ -21,12 +21,10 @@ A Claude skill for delegating token-heavy tasks to Google's Gemini CLI agent. Cl
 Gemini CLI must be installed globally:
 
 ```bash
-npm install -g @anthropic-ai/gemini-cli
-# or
-npm install -g @anthropic-ai/gemini
+npm install -g @google/gemini-cli
 ```
 
-Verify: `gemini --version` (tested with v0.36.0)
+Verify: `gemini --version` (tested with v0.37.1)
 
 ## Project Structure
 
@@ -36,7 +34,8 @@ gemini-delegate/
 ├── README.md             # English documentation
 ├── README_zh-TW.md       # 繁體中文文件
 ├── scripts/
-│   └── run_gemini.ps1    # PowerShell helper for launching Gemini
+│   ├── run_gemini.sh     # Bash helper (pushd, --approval-mode yolo, stdin pipe, verify)
+│   └── run_gemini.ps1    # PowerShell helper (same logic as .sh)
 └── references/
     └── examples.md       # Complete delegation examples
 ```

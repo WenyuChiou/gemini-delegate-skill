@@ -92,9 +92,9 @@ GEMINI_BIN="${GEMINI_PATH:-gemini}"
 OUTPUT=""
 EXIT_CODE=0
 
-# Gemini CLI invocation — three critical rules for non-interactive runs:
+# Three critical rules for non-interactive Gemini CLI runs:
 #   1. Gemini CLI has NO `-C <dir>` flag (that is Codex CLI syntax). You must
-#      `cd` into the target workspace so Gemini's sandbox allows writes there.
+#      `pushd` into the target workspace so Gemini's sandbox allows writes there.
 #   2. Must pass `--approval-mode yolo`. Default mode prompts for approval per
 #      tool call; in non-interactive mode those calls are silently skipped and
 #      Gemini falls back to emitting write_file() as pseudo-code comments
@@ -126,7 +126,7 @@ fi
 
 # Success — but FIRST verify expected files exist on disk
 # (Gemini sometimes exits 0 even when write_file calls failed mid-execution
-#  due to internal tool-schema bugs. See SKILL.md "Fourth rule".)
+#  due to internal tool-schema bugs.)
 if [[ "${#VERIFY_FILES[@]}" -gt 0 ]]; then
     VERIFY_FAIL=0
     for f in "${VERIFY_FILES[@]}"; do

@@ -123,6 +123,8 @@ fi
 | `--repo` | `~/mispricing-engine` | Working directory |
 | `--model` | `gemini-2.5-pro` | Gemini model |
 | `--log-file` | `<repo>/.ai/gemini_output.txt` | Log file path |
+| `--verify-file` | (none) | File that must exist + be non-empty after run (repeatable) |
+| `--verify-sentinel` | (none) | String that must appear in every `--verify-file` |
 
 ### run_gemini.ps1
 | Parameter | Default | Description |
@@ -131,6 +133,8 @@ fi
 | `-Repo` | `C:\Users\wenyu\mispricing-engine` | Working directory |
 | `-Model` | `gemini-2.5-pro` | Gemini model |
 | `-LogFile` | `<Repo>\.ai\gemini_output.txt` | Log file path |
+| `-VerifyFile` | `@()` | File(s) that must exist + be non-empty after run (array) |
+| `-VerifySentinel` | `""` | String that must appear in every `-VerifyFile` |
 
 ## Sensitive Word Replacements (Threads v4)
 

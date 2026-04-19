@@ -6,7 +6,7 @@
 
 ## 功能特色
 
-**任務委派** — 透過 `gemini -p` 進行非互動式 headless 執行，搭配 YOLO 自動批准
+**任務委派** — 透過 stdin 管道與 `--approval-mode yolo` 進行非互動式 headless 執行
 
 **中日韓內容** — 原生支援中文/日文/韓文文本生成、財務報告、社群媒體貼文
 
@@ -21,12 +21,10 @@
 Gemini CLI 需全域安裝：
 
 ```bash
-npm install -g @anthropic-ai/gemini-cli
-# 或
-npm install -g @anthropic-ai/gemini
+npm install -g @google/gemini-cli
 ```
 
-驗證：`gemini --version`（已測試 v0.36.0）
+驗證：`gemini --version`（已測試 v0.37.1）
 
 ## 專案結構
 
@@ -36,7 +34,8 @@ gemini-delegate/
 ├── README.md             # 英文文件
 ├── README_zh-TW.md       # 繁體中文文件
 ├── scripts/
-│   └── run_gemini.ps1    # PowerShell 啟動 Gemini 輔助腳本
+│   ├── run_gemini.sh     # Bash 輔助腳本（pushd、--approval-mode yolo、stdin 管道、驗證）
+│   └── run_gemini.ps1    # PowerShell 輔助腳本（同 .sh 邏輯）
 └── references/
     └── examples.md       # 完整委派範例
 ```
