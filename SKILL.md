@@ -1,302 +1,170 @@
 ---
 name: gemini-delegate
-description: "Delegate CJK/Chinese content tasks to Gemini CLI. Use this skill for writing Chinese reports, Threads posts (美洲更新), comments, translations, and any task requiring native-quality Traditional Chinese output. Gemini handles the content generation while Claude plans, reviews, and integrates."
+description: Use when the task is dominated by large-context reading, bilingual or CJK synthesis, long-form zh-TW writing, or second-opinion review rather than bulk code generation. Typical triggers include Chinese summaries of large English material, cross-file synthesis, terminology alignment, release-note drafting, and reviewer-style passes over documentation or generated output.
 ---
 
 # Gemini Delegate Skill
 
-You are Claude acting as a **supervisor**. You plan, evaluate, and review. Gemini does the CJK/Chinese writing.
+Claude is the supervisor. Claude decides scope, supplies context, and performs final review. Gemini is the specialist for large-context synthesis, bilingual/CJK drafting, and second-opinion analysis.
 
-## ⛔ CRITICAL: Shell Compatibility (READ FIRST)
+## When to Use
 
-**Claude Code's Bash tool runs git-bash (Unix shell) on Windows — NOT cmd.exe, NOT PowerShell.**
+Do not use Gemini as a mirror copy of Codex. Its value is different.
 
-### NEVER use these CMD-only commands in Bash:
-| ❌ BANNED (cmd.exe only) | ✅ Use instead (bash) |
-|--------------------------|----------------------|
-| `cd /d C:\path` | `cd /c/Users/wenyu/path` or `cd "$HOME/path"` |
-| `type file.txt` | `cat file.txt` |
-| `dir` | `ls` |
-| `copy src dst` | `cp src dst` |
-| `del file` | `rm file` |
-| `md dir` | `mkdir -p dir` |
-| `set VAR=value` | `export VAR=value` |
-| `%VAR%` | `$VAR` or `${VAR}` |
-| `ren old new` | `mv old new` |
-| `cls` | `clear` |
+| Route to | Best for | Avoid |
+|----------|----------|-------|
+| `Gemini` | Large-context summarization, zh-TW/CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
+| `Codex` | Mechanical implementation, refactors, test scaffolding, batch edits | Large-context reading and nuanced synthesis |
+| `Claude` | Requirements, acceptance judgment, debugging root cause, final publication review | Long repetitive drafting |
 
-### Path format in Bash
-- Windows: `C:\Users\wenyu\mispricing-engine` → Bash: `/c/Users/wenyu/mispricing-engine` or `~/mispricing-engine`
-- **NEVER** use backslashes `\` in bash paths — always use forward slashes `/`
-- **NEVER** use `cd /d` — this is CMD syntax and WILL fail in bash
+If the task is "read a lot, synthesize, compare, or rewrite in Chinese," Gemini is a good candidate.
 
-### When to use PowerShell
-Only use PowerShell syntax (with `powershell` code fence) when calling `.ps1` scripts directly via Desktop Commander or Windows-MCP. All other code blocks in this skill use Unix bash.
+## Required Output Contract
 
-## When to Delegate to Gemini
+Every wrapper run must leave machine-readable status in:
 
-### Delegate to Gemini (good for)
-- Traditional Chinese content (reports, analyses, social media posts)
-- 美洲更新 (Americas Update) weekly Threads series
-- CJK translation with domain-specific terminology
-- Chinese-language summaries of English analysis
-- Any content requiring native-quality Chinese output
-- Long-form Chinese writing (>200 characters)
+`<log-file>.result.json`
 
-### Keep in Claude (bad for Gemini)
-- Architecture decisions, code review, debugging
-- English-only content
-- Tasks requiring conversation history or memory context
-- Security-sensitive operations
-- Multi-step workflows with complex dependencies
-- Code generation (Gemini's coding is weaker)
+Required fields:
 
-## Core Workflow: Context File Pattern
+```json
+{
+  "status": "success|fallback|error|verify_failed",
+  "delegate": "gemini",
+  "model": "gemini/<model>",
+  "log_file": "<path>",
+  "summary": "",
+  "risks": [],
+  "files_changed": [],
+  "tests_run": [],
+  "timestamp_utc": "2026-04-24T00:00:00Z"
+}
+```
 
-### Step 1: Claude writes the context file
-Save to `.ai/gemini_task_<name>.md` in the repo:
+The wrapper contract is transport status only. Claude still owns factual review, terminology checks, and publication quality.
+
+## Good Delegation Targets
+
+- Summarize a long English report into concise zh-TW
+- Compare multiple docs and produce one synthesized brief
+- Rewrite translated content into more natural Traditional Chinese
+- Draft release notes, updates, or FAQs from source material
+- Provide a second-opinion review over a long design or doc set
+- Align terminology across bilingual documents
+
+## Bad Delegation Targets
+
+- Generate or refactor production code across many files
+- Diagnose a flaky test or deep runtime bug
+- Decide architecture or API boundaries
+- Review auth, secret handling, or validation logic
+- Publish translation output without Claude review
+
+## Supervisor Workflow
+
+### 1. Write a task file
+
+Create `.ai/gemini_task_<name>.md`:
 
 ```markdown
 # Task: <descriptive name>
 
 ## Context
-- Repo: ~/mispricing-engine
-- Key files to read: <list paths>
-- Output file: <where to write result>
+- Repo: C:\path\to\repo
+- Read these files first:
+  - docs/spec.md
+  - docs/changelog.md
+- Output file(s):
+  - docs/output_zh-TW.md
+
+## Goal
+<what Gemini should synthesize or draft>
 
 ## Language
-- Output language: Traditional Chinese (繁體中文)
-- Tone: <formal/casual/hedged-framework-driven>
-- Audience: <target audience>
-
-## Instructions
-<Clear, step-by-step instructions in English or Chinese>
+- Output language: Traditional Chinese
+- Tone: formal / concise / executive / technical
+- Audience: <who will read it>
 
 ## Constraints
-- Do not modify files outside the listed paths
-- Follow existing terminology conventions
-- Use hedged language for market predictions (per feedback_threads_tone)
+- Preserve dates and proper nouns exactly
+- Keep terminology consistent with glossary.md
+- Do not invent facts missing from the sources
 
-## Output
-- Save output to <path>
+## Acceptance
+- Required verification files: <paths>
+- Required sentinel string: <string if useful>
+- Claude will perform a terminology and factual review before shipping
 ```
 
-### Step 2: Launch Gemini (synchronous, from Claude Code Bash)
+### 2. Launch Gemini synchronously
+
+From Claude Code Bash:
+
 ```bash
-# Direct synchronous call
 bash .claude/skills/gemini-delegate/scripts/run_gemini.sh \
   --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
-  --log-file .ai/gemini_log_<name>.txt
+  --log-file .ai/gemini_log_<name>.txt \
+  --verify-file docs/output_zh-TW.md
 ```
 
-Or call the PowerShell script directly:
+PowerShell direct call is also supported:
+
 ```powershell
-# From PowerShell only (NOT from Claude Code Bash)
 & "C:\Users\wenyu\mispricing-engine\.claude\skills\gemini-delegate\scripts\run_gemini.ps1" `
-    -Prompt "Read .ai/gemini_task_<name>.md and execute all instructions." `
-    -LogFile "C:\Users\wenyu\mispricing-engine\.ai\gemini_log_<name>.txt"
+    -Prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." `
+    -LogFile "C:\Users\wenyu\mispricing-engine\.ai\gemini_log_<name>.txt" `
+    -VerifyFile "C:\Users\wenyu\mispricing-engine\docs\output_zh-TW.md"
 ```
 
-### Step 3: Check result
-```bash
-# Check for fallback sentinel first
-if [ -f ".ai/gemini_log_<name>.txt.fallback_claude" ]; then
-    echo "Quota exceeded — doing task myself"
-elif [ -f ".ai/gemini_log_<name>.txt.done" ]; then
-    cat ".ai/gemini_log_<name>.txt"
-fi
-```
-
-### Step 4: Claude reviews
-- Read the output
-- Check Chinese quality (terminology, tone, accuracy)
-- Verify sensitive word replacements (per feedback_thread_sensitive_words)
-- If 80%+ correct: fix remaining issues directly
-- If fundamentally wrong: rewrite context file and re-run
-
-## Script Parameters
-
-### run_gemini.sh
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--prompt` | (required) | Task prompt |
-| `--repo` | `~/mispricing-engine` | Working directory |
-| `--model` | `gemini-2.5-pro` | Gemini model |
-| `--log-file` | `<repo>/.ai/gemini_output.txt` | Log file path |
-| `--verify-file` | (none) | File that must exist + be non-empty after run (repeatable) |
-| `--verify-sentinel` | (none) | String that must appear in every `--verify-file` |
-
-### run_gemini.ps1
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `-Prompt` | (required) | Task prompt |
-| `-Repo` | `C:\Users\wenyu\mispricing-engine` | Working directory |
-| `-Model` | `gemini-2.5-pro` | Gemini model |
-| `-LogFile` | `<Repo>\.ai\gemini_output.txt` | Log file path |
-| `-VerifyFile` | `@()` | File(s) that must exist + be non-empty after run (array) |
-| `-VerifySentinel` | `""` | String that must appear in every `-VerifyFile` |
-
-## Sensitive Word Replacements (Threads v4)
-
-When generating Threads posts, apply these replacements:
-- Check `feedback_thread_sensitive_words` memory for current list
-- Common replacements: avoid absolute predictions, use hedged framework-driven language
-- Never use "一定", "保證", "必然" — use "可能", "傾向", "框架顯示"
-
-## Important Caveats
-
-- Gemini has NO persistent memory — always give full context via file paths
-- Gemini cannot read conversation history — summarize decisions in the context file
-- Gemini's coding ability is weaker than Claude/Codex — do NOT delegate code tasks
-- Always verify Gemini output for factual accuracy before publishing
-- The `.ai/` directory is gitignored — safe for task files and logs
-- If `.fallback_claude` sentinel appears, do the task yourself immediately
-
-## ⚠️ Non-interactive invocation: three critical rules
-
-These three rules apply to every non-interactive Gemini CLI run (both
-`run_gemini.sh` and `run_gemini.ps1` in this skill already handle them
-correctly; call them out explicitly if you are writing your own wrapper).
-
-### 1. Gemini CLI has NO `-C <dir>` flag
-
-`-C` is Codex CLI syntax. Gemini CLI uses the current working directory
-as its workspace, plus anything listed in `--include-directories`. If
-you try `gemini -C /path/to/repo ...` you get a cryptic argument error.
-
-**Correct pattern**: `cd` / `pushd` into the target repo before invoking
-Gemini, then `cd` / `popd` back afterwards.
+### 3. Read wrapper status first
 
 ```bash
-# Bash
-pushd "$REPO" > /dev/null
-gemini --approval-mode yolo < prompt.txt
-popd > /dev/null
+cat .ai/gemini_log_<name>.txt.result.json
 ```
 
-```powershell
-# PowerShell
-Push-Location $Repo
-try {
-    Get-Content $promptFile -Raw | & gemini --approval-mode yolo
-} finally {
-    Pop-Location
-}
-```
+If status is `verify_failed`, the process exited but required files were missing or incomplete. Treat that as failure.
 
-### 2. Always pass `--approval-mode yolo`
+### 4. Claude publication review
 
-Gemini CLI's default approval mode prompts the user for each tool call.
-In non-interactive mode (piped stdin, no TTY) there is no way to
-approve, so tool calls are silently dropped — and Gemini falls back to
-**emitting `write_file(...)` as pseudo-code comments in its text output**
-instead of actually writing files. This looks like a planning log
-rather than an execution failure, which is why it is hard to debug.
+Claude must review:
 
-If you see Gemini output containing commented-out Python blocks like:
+- factual accuracy against source files
+- dates, names, and terminology consistency
+- tone and audience fit
+- any banned or sensitive phrasing required by the project
 
-```
-# I will construct the builder.py file content.
-# print(default_api.write_file(file_path='...', content='...'))
-# This requires writing the *entire* file.
-```
+Gemini can draft or synthesize. Claude decides whether the output is publishable.
 
-you are hitting this bug. Fix: add `--approval-mode yolo` to the
-`gemini` command (or use `-y`, which is the alias).
+## Non-Interactive Execution Rules
 
-### 3. Pipe large prompts via stdin, not positional args
+These wrappers already enforce the critical Gemini CLI rules:
 
-Windows `cmd.exe` has a ~32 KB command-line length limit. If you pass a
-large prompt as a positional argument (e.g. `gemini "$(cat brief.md)"`)
-and the brief exceeds ~32 KB, the invocation fails with "Argument list
-too long" in git-bash or silently truncates on Windows.
+- run from the target working directory instead of using a fake `-C`
+- pass `--approval-mode yolo`
+- pipe prompts through stdin instead of a giant positional argument
+- verify expected files after exit when `--verify-file` is supplied
 
-**Correct pattern**: write the prompt to a file, pipe it via stdin:
+If you write your own wrapper, preserve all four behaviors.
 
-```bash
-gemini --approval-mode yolo < prompt.txt
-```
+## Quality Boundaries
 
-Both wrapper scripts in this skill already do this.
+Gemini is useful for first drafts and synthesis, but it can still:
 
-### How the old pattern failed
+- drift terminology across files
+- over-translate proper nouns
+- miss project-specific banned phrases
+- guess dates or context if the prompt is underspecified
 
-Versions of `run_gemini.sh` and `run_gemini.ps1` before the fix used:
+Do not ship its output unreviewed.
 
-```bash
-gemini -m "$MODEL" -C "$REPO" "$(cat "$PROMPT_FILE")"
-```
+## Minimal Review Checklist
 
-That had all three bugs: unknown `-C` flag, missing `--approval-mode
-yolo`, and positional arg instead of stdin. On tasks larger than a few
-KB with files outside the session CWD, every tool call was silently
-dropped and the output looked like planning comments.
+Before accepting delegate output:
 
----
+- Did Gemini cite or preserve the correct source facts?
+- Did it keep terminology consistent with project vocabulary?
+- Did it stay within the requested language and tone?
+- Did required output files actually exist on disk?
+- Does the result belong to Gemini, or should this have stayed in Claude/Codex?
 
-## ⚠️ FOURTH RULE (added 2026-04-17): Verify file writes after Gemini exits
-
-**Even when the three rules above are followed and Gemini exits cleanly (rc=0), expected output files may be missing or partial on disk.** Two failure modes observed in production use of Gemini CLI 0.37+:
-
-### Failure mode 1 — `write_file: params must have required property 'file_path'`
-
-Gemini occasionally hits an internal tool-schema mismatch on the **second or later** `write_file` call within a single invocation. Symptom in stderr:
-
-```
-Error executing tool write_file: params must have required property 'file_path'
-```
-
-The first `write_file` call usually succeeds before this happens, so you might end up with **partial deliverables** — first file written, subsequent files missing — and Gemini still exits 0 because the error was caught internally.
-
-### Failure mode 2 — silent partial writes
-
-Gemini can decide to "abandon" a write halfway through (rate-limit retry, model decided to re-plan) and the file ends up on disk with bad indentation, missing imports, or truncated mid-function. Process exits 0 with no stderr signal.
-
-### The fix: post-execution verification
-
-**ALWAYS check expected output files exist on disk + are non-empty + contain a sentinel string after `gemini` exits, regardless of stderr.** Treat Gemini's exit code as advisory, not authoritative.
-
-Bash pattern:
-
-```bash
-EXPECTED_FILES=(
-    "docs/output1.md"
-    "docs/output2.md"
-)
-SENTINEL="## My Required Heading"  # something that MUST appear in the output
-
-cat brief.md | gemini --approval-mode yolo
-GEMINI_RC=$?
-
-# Verification (run regardless of exit code)
-for f in "${EXPECTED_FILES[@]}"; do
-    if [[ ! -s "$f" ]]; then
-        echo "VERIFICATION FAILED: $f missing or empty" >&2
-        exit 1
-    fi
-    if ! grep -q "$SENTINEL" "$f"; then
-        echo "VERIFICATION FAILED: $f missing sentinel '$SENTINEL'" >&2
-        exit 1
-    fi
-done
-echo "All ${#EXPECTED_FILES[@]} files verified."
-```
-
-This skill's wrapper scripts (`scripts/run_gemini.sh` + `.ps1`) include a `--verify-file PATH` flag that does this check automatically — see those scripts for the canonical implementation.
-
-### Translation-quality caveat (also 2026-04-17)
-
-When Gemini IS invoked correctly and DOES write the file successfully, the **content quality for translation tasks is B-grade at best**:
-
-- Banned-words lists in the brief are routinely ignored
-- Tone is consistently "translated-from-English" — not native target-language idiom
-- Terminology drift across files even when the brief asks for consistency
-- Dates in changelogs are wrong (Gemini guesses based on training, doesn't read system date)
-
-**Workflow that works for translation:**
-1. Use Gemini for first-draft generation (saves Claude ~60% of typing time)
-2. Claude reviews EVERY translated file: banned-words audit, terminology consistency check, line-by-line accuracy spot-check
-3. Claude rewrites the worst ~25% of lines manually
-4. Run with `--verify-file` to catch missing/empty outputs immediately
-
-**Don't ship Gemini's translation output as final without Claude polish.** Cost savings vs Claude-direct translation are real but modest; quality without polish is not production-grade.
+If the answer to the last question is wrong, fix your routing first.
