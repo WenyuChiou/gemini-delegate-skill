@@ -1,54 +1,74 @@
-# Gemini CLI 委派技能
+# Gemini Delegate Skill
 
-> [English Version](README.md)
+> [English](README.md)
 
-一個讓 Claude 將高 token 消耗任務委派給 Google Gemini CLI 的技能。Claude 負責規劃與審核，Gemini 負責執行。
+`gemini-delegate` 是一個給 Claude 使用的 skill，目的是把 Gemini 當成「large-context synthesis / CJK 撰寫 / 第二意見 review」的專門工具，而不是拿來做大量程式實作。
 
-## 功能特色
+## 定位
 
-**任務委派** — 透過 stdin 管道與 `--approval-mode yolo` 進行非互動式 headless 執行
+這個 skill 不是 `codex-delegate` 的 Gemini 版本。
 
-**中日韓內容** — 原生支援中文/日文/韓文文本生成、財務報告、社群媒體貼文
+它比較適合這些工作：
 
-**多檔案操作** — 跨多個檔案的批次重構、程式碼生成與文件撰寫
+- 把大量英文材料整理成 zh-TW 摘要
+- 綜合多份文件後輸出一份整理稿
+- 起草雙語或 CJK 導向的更新內容
+- 對長篇文件做 reviewer-style 第二意見審查
+- 對翻譯稿做術語一致性整理
 
-**上下文管道** — 撰寫詳細的任務檔案並傳送給 Gemini 處理複雜的多步驟工作
+它不適合用來做大量 code generation、架構決策或程式除錯。
 
-**跨平台** — 內含 Windows 專用解決方案（cmd shell 路由、UTF-8 處理）
+## 這版更新重點
 
-## 安裝
+- 範圍收斂為 synthesis 與 CJK 寫作
+- 明確區分 Gemini、Codex、Claude 的邊界
+- wrapper 會輸出機器可讀的 `<log>.result.json`
+- 新增驗證導向的 wrapper tests
 
-Gemini CLI 需全域安裝：
+## 核心工作流
 
-```bash
-npm install -g @google/gemini-cli
-```
+1. Claude 先準備 context file，寫清楚來源、輸出、語言與限制。
+2. Claude 透過 wrapper 啟動 Gemini。
+3. Wrapper 可在執行後驗證預期輸出檔案是否真的存在。
+4. Claude 再做事實、術語、語氣的最終審核。
 
-驗證：`gemini --version`（已測試 v0.37.1）
+Gemini 可以提供有價值的初稿，但最後是否能發布，仍然由 Claude 判斷。
 
 ## 專案結構
 
-```
-gemini-delegate/
-├── SKILL.md              # 主要技能指令
-├── README.md             # 英文文件
-├── README_zh-TW.md       # 繁體中文文件
+```text
+gemini-delegate-skill/
+├── SKILL.md
+├── README.md
+├── README_zh-TW.md
 ├── scripts/
-│   ├── run_gemini.sh     # Bash 輔助腳本（pushd、--approval-mode yolo、stdin 管道、驗證）
-│   └── run_gemini.ps1    # PowerShell 輔助腳本（同 .sh 邏輯）
+│   ├── run_gemini.sh
+│   └── run_gemini.ps1
+├── tests/
+│   └── test_wrappers.py
 └── references/
-    └── examples.md       # 完整委派範例
 ```
 
-## 使用方式
+## 測試
 
-此技能設計給 Claude（或任何 AI 協調器）讀取並遵循。當 Claude 遇到符合委派條件的任務時：
+```bash
+python -m pytest -q
+```
 
-1. 撰寫描述任務的上下文檔案
-2. 以上下文啟動 Gemini CLI
-3. 審核並驗證輸出結果
-4. 向使用者報告結果
+目前測試涵蓋：
 
-## 授權
+- success path 的 `result.json` 輸出
+- verification failure 的回報行為
+
+## 安裝
+
+你的環境需要先有 Gemini CLI：
+
+```bash
+npm install -g @google/gemini-cli
+gemini --version
+```
+
+## License
 
 MIT
