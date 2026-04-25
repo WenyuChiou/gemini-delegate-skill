@@ -2,7 +2,7 @@
 
 > [English](README.md)
 
-`gemini-delegate` 是一個給 Claude 使用的 skill，目的是把 Gemini 當成「large-context synthesis / CJK 撰寫 / 第二意見 review」的專門工具，而不是拿來做大量程式實作。
+`gemini-delegate` 是一個給 Claude 使用的 skill，目的是把 Gemini 當成「large-context synthesis / 長文撰寫 / 英文與 CJK 輸出 / 第二意見 review」的專門工具，而不是拿來做大量程式實作。
 
 ## 定位
 
@@ -10,9 +10,9 @@
 
 它比較適合這些工作：
 
-- 把大量英文材料整理成 zh-TW 摘要
+- 把大量材料整理成英文或 zh-TW 摘要
 - 綜合多份文件後輸出一份整理稿
-- 起草雙語或 CJK 導向的更新內容
+- 起草英文、雙語或 CJK 導向的更新內容
 - 對長篇文件做 reviewer-style 第二意見審查
 - 對翻譯稿做術語一致性整理
 

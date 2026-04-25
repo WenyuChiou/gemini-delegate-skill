@@ -1,11 +1,11 @@
 ---
 name: gemini-delegate
-description: Use when the task is dominated by large-context reading, bilingual or CJK synthesis, long-form zh-TW writing, or second-opinion review rather than bulk code generation. Typical triggers include Chinese summaries of large English material, cross-file synthesis, terminology alignment, release-note drafting, and reviewer-style passes over documentation or generated output.
+description: Use when the task is dominated by large-context reading, synthesis, long-form drafting, bilingual or CJK writing, or second-opinion review rather than bulk code generation. Typical triggers include English or Chinese summaries of large source material, cross-file synthesis, terminology alignment, release-note drafting, and reviewer-style passes over documentation or generated output.
 ---
 
 # Gemini Delegate Skill
 
-Claude is the supervisor. Claude decides scope, supplies context, and performs final review. Gemini is the specialist for large-context synthesis, bilingual/CJK drafting, and second-opinion analysis.
+Claude is the supervisor. Claude decides scope, supplies context, and performs final review. Gemini is the specialist for large-context synthesis, long-form drafting, bilingual or CJK writing, and second-opinion analysis.
 
 ## When to Use
 
@@ -13,11 +13,11 @@ Do not use Gemini as a mirror copy of Codex. Its value is different.
 
 | Route to | Best for | Avoid |
 |----------|----------|-------|
-| `Gemini` | Large-context summarization, zh-TW/CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
+| `Gemini` | Large-context summarization, English or zh-TW/CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
 | `Codex` | Mechanical implementation, refactors, test scaffolding, batch edits | Large-context reading and nuanced synthesis |
 | `Claude` | Requirements, acceptance judgment, debugging root cause, final publication review | Long repetitive drafting |
 
-If the task is "read a lot, synthesize, compare, or rewrite in Chinese," Gemini is a good candidate.
+If the task is "read a lot, synthesize, compare, or rewrite carefully in English or Chinese," Gemini is a good candidate.
 
 ## Required Output Contract
 
@@ -45,10 +45,10 @@ The wrapper contract is transport status only. Claude still owns factual review,
 
 ## Good Delegation Targets
 
-- Summarize a long English report into concise zh-TW
+- Summarize a long English report into concise English or zh-TW
 - Compare multiple docs and produce one synthesized brief
 - Rewrite translated content into more natural Traditional Chinese
-- Draft release notes, updates, or FAQs from source material
+- Draft release notes, updates, or FAQs from source material in English or Chinese
 - Provide a second-opinion review over a long design or doc set
 - Align terminology across bilingual documents
 

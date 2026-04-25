@@ -2,7 +2,7 @@
 
 > [繁體中文](README_zh-TW.md)
 
-`gemini-delegate` is a Claude-oriented skill for using Gemini as a specialist for large-context synthesis, bilingual or CJK writing, and second-opinion review.
+`gemini-delegate` is a Claude-oriented skill for using Gemini as a specialist for large-context synthesis, long-form drafting, English or bilingual/CJK writing, and second-opinion review.
 
 ## Positioning
 
@@ -10,9 +10,9 @@ This skill is not the Gemini version of `codex-delegate`.
 
 Its job is different:
 
-- summarize large English source material into zh-TW
+- summarize large source material into English or zh-TW
 - synthesize across multiple files
-- draft bilingual or CJK-facing updates
+- draft English, bilingual, or CJK-facing updates
 - perform reviewer-style second-opinion passes on long docs
 - align terminology across translated content
 
