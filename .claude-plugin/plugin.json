@@ -8,6 +8,14 @@
   "homepage": "https://github.com/WenyuChiou/gemini-delegate-skill",
   "repository": "https://github.com/WenyuChiou/gemini-delegate-skill",
   "license": "MIT",
-  "keywords": ["gemini", "delegation", "multi-ai", "long-context", "cjk"],
-  "skills": ["./"]
+  "keywords": [
+    "gemini",
+    "delegation",
+    "multi-ai",
+    "long-context",
+    "cjk"
+  ],
+  "skills": [
+    "."
+  ]
 }
