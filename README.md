@@ -62,7 +62,17 @@ Current wrapper tests cover:
 
 ## Installation
 
-Gemini CLI must be available in your environment:
+**1. Install the skill** via the [`ai-research-skills` Claude Code marketplace](https://github.com/WenyuChiou/ai-research-skills):
+
+```bash
+claude plugin marketplace add WenyuChiou/ai-research-skills
+claude plugin install gemini-delegate@ai-research-skills
+```
+
+Default scope is `user` (this OS account, all projects). Add
+`--scope project` to install only for the current project.
+
+**2. Make sure Gemini CLI is on `$PATH`:**
 
 ```bash
 npm install -g @google/gemini-cli
