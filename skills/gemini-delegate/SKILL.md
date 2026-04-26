@@ -7,6 +7,31 @@ description: Use when the task is dominated by large-context reading, synthesis,
 
 Claude is the supervisor. Claude decides scope, supplies context, and performs final review. Gemini is the specialist for large-context synthesis, long-form drafting, bilingual or CJK writing, and second-opinion analysis.
 
+## Prerequisite check (do this first)
+
+This skill emits Gemini CLI invocations. Before producing any task
+file, wrapper command, or handoff prompt, verify the binary is on
+`$PATH`:
+
+```bash
+gemini --version
+```
+
+If that command is **not found**, stop and tell the user:
+
+> This skill needs the Gemini CLI. Install it with:
+>
+> ```bash
+> npm install -g @google/gemini-cli
+> gemini --version
+> ```
+>
+> Then re-run your request.
+
+Do **not** prepare a task prompt, write a wrapper command, or
+fabricate a `result.json`. Without the binary on PATH, every
+"successful" wrapper run is a hallucination.
+
 ## When to Use
 
 Do not use Gemini as a mirror copy of Codex. Its value is different.
