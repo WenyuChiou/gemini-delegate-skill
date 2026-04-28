@@ -68,6 +68,12 @@ Required fields:
 
 The wrapper contract is transport status only. Claude still owns factual review, terminology checks, and publication quality.
 
+If the task was queued as part of a multi-agent run by
+`agent-task-splitter` (from the `agent-collab-skills` marketplace),
+its task file lives at `.ai/gemini_task_<NNN>_<slug>.md` and the
+round plan is at `.coord/plan.yml`. Read the plan for context (which
+other agents are running, what each task's success criteria are).
+
 ## Good Delegation Targets
 
 - Summarize a long English report into concise English or zh-TW
