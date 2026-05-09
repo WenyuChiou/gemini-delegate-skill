@@ -1,17 +1,16 @@
 ---
 name: gemini-delegate
-description: Use when the task is dominated by large-context reading, synthesis, long-form drafting, bilingual or CJK writing, or second-opinion review rather than bulk code generation. Typical triggers include English or Chinese summaries of large source material, cross-file synthesis, terminology alignment, release-note drafting, and reviewer-style passes over documentation or generated output.
+description: Delegates large-context reading, bilingual or Chinese (CJK / 中文 / zh-TW) drafting, cross-file synthesis, and second-opinion review to Google Gemini CLI. Use when input exceeds Claude's working budget, when the user writes in Chinese, when terminology must align across long documents, or when a reviewer pass is needed. Trigger phrases include "summarize this in Chinese", "second-opinion review", "long-context synthesis", "draft this in zh-TW". Avoid for bulk code generation or security-sensitive coding.
+license: MIT
 ---
 
 # Gemini Delegate Skill
 
-Claude is the supervisor. Claude decides scope, supplies context, and performs final review. Gemini is the specialist for large-context synthesis, long-form drafting, bilingual or CJK writing, and second-opinion analysis.
+Claude is the supervisor. Gemini drafts and synthesizes. Claude reviews terminology, facts, tone, and decides what ships.
 
 ## Prerequisite check (do this first)
 
-This skill emits Gemini CLI invocations. Before producing any task
-file, wrapper command, or handoff prompt, verify the binary is on
-`$PATH`:
+Before producing any task file, wrapper command, or handoff prompt, verify the binary is on `$PATH`:
 
 ```bash
 gemini --version
@@ -28,174 +27,69 @@ If that command is **not found**, stop and tell the user:
 >
 > Then re-run your request.
 
-Do **not** prepare a task prompt, write a wrapper command, or
-fabricate a `result.json`. Without the binary on PATH, every
-"successful" wrapper run is a hallucination.
+Do **not** prepare a task prompt, write a wrapper command, or fabricate a `result.json`. Without the binary on PATH, every "successful" wrapper run is a hallucination.
 
-## When to Use
+## Hard rules
 
-Do not use Gemini as a mirror copy of Codex. Its value is different.
+These three are non-negotiable. The wrapper enforces them; if you write your own wrapper, preserve all three:
 
-| Route to | Best for | Avoid |
-|----------|----------|-------|
-| `Gemini` | Large-context summarization, English or zh-TW/CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
-| `Codex` | Mechanical implementation, refactors, test scaffolding, batch edits | Large-context reading and nuanced synthesis |
-| `Claude` | Requirements, acceptance judgment, debugging root cause, final publication review | Long repetitive drafting |
+1. **No `-C` flag**. `cd` into the target repo before invoking `gemini`. Gemini CLI does not have `-C`.
+2. **Use `--approval-mode yolo`**. Without it, Gemini blocks on file-write approvals.
+3. **Pipe the prompt through stdin**. Passing it as a positional argument can hang the CLI.
 
-If the task is "read a lot, synthesize, compare, or rewrite carefully in English or Chinese," Gemini is a good candidate.
+The wrapper additionally verifies expected files when `--verify-file` is supplied.
 
-## Required Output Contract
+## When to delegate
 
-Every wrapper run must leave machine-readable status in:
+Long-context synthesis or CJK writing → `gemini` · Code execution → `codex` · Judgment / review / final acceptance → `claude`.
 
-`<log-file>.result.json`
+Full routing table and examples: `references/delegation-targets.md`.
 
-Required fields:
+## Workflow
 
-```json
-{
-  "status": "success|fallback|error|verify_failed",
-  "delegate": "gemini",
-  "model": "gemini/<model>",
-  "log_file": "<path>",
-  "summary": "",
-  "risks": [],
-  "files_changed": [],
-  "tests_run": [],
-  "timestamp_utc": "2026-04-24T00:00:00Z"
-}
-```
+1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
 
-The wrapper contract is transport status only. Claude still owns factual review, terminology checks, and publication quality.
+2. **Run**: from Claude Code Bash, invoke the wrapper from its install location (user-scope skills install at `~/.claude/skills/`):
+   ```bash
+   bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
+     --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
+     --repo "$PWD" \
+     --log-file .ai/gemini_log_<name>.txt \
+     --verify-file <expected_output_path>
+   ```
+   `--repo "$PWD"` overrides the wrapper default. PowerShell variant + env vars: `references/wrapper.md`.
 
-If the task was queued as part of a multi-agent run by
-`agent-task-splitter` (from the `agent-collab-skills` marketplace),
-its task file lives at `.ai/gemini_task_<NNN>_<slug>.md` and the
-round plan is at `.coord/plan.yml`. Read the plan for context (which
-other agents are running, what each task's success criteria are).
+3. **Read status**: `cat .ai/gemini_log_<name>.txt.result.json`.
+   - `success` → output still needs Claude publication review.
+   - `verify_failed` → process exited but expected files missing → treat as failure.
+   - `fallback` → quota hit; Claude takes over.
+   - `error` → hard failure; check `<log>.error`.
 
-## Good Delegation Targets
+4. **Publication review**: factual accuracy, terminology consistency, dates / proper nouns, banned phrasing, audience fit. Extended checklist: `references/review-checklist.md`.
 
-- Summarize a long English report into concise English or zh-TW
-- Compare multiple docs and produce one synthesized brief
-- Rewrite translated content into more natural Traditional Chinese
-- Draft release notes, updates, or FAQs from source material in English or Chinese
-- Provide a second-opinion review over a long design or doc set
-- Align terminology across bilingual documents
+## Output contract
 
-## Bad Delegation Targets
+`.result.json` includes at minimum: `status` (success | verify_failed | fallback | error), `delegate` (always `"gemini"`), `model`, `log_file`, `summary`, `risks`, `files_changed`, `tests_run`, `timestamp_utc`. Full schema and status semantics: `references/output-contract.md`.
 
-- Generate or refactor production code across many files
-- Diagnose a flaky test or deep runtime bug
-- Decide architecture or API boundaries
-- Review auth, secret handling, or validation logic
-- Publish translation output without Claude review
+## Common drift to watch
 
-## Supervisor Workflow
+Gemini may: drift terminology mid-document, over-translate proper nouns, miss project-specific banned phrases, invent dates if the brief is underspecified, switch between Simplified and Traditional Chinese mid-paragraph. Never ship its output unreviewed.
 
-### 1. Write a task file
+## Compatibility
 
-Create `.ai/gemini_task_<name>.md`:
+- Tested with `@google/gemini-cli` 0.38.2 (May 2026). Approval modes available: `default`, `auto_edit`, `yolo`, `plan`.
+- Default model: `gemini-2.5-pro` (override via `--model` or `-Model`). For long-form CJK quality, prefer the latest Pro model available on your CLI.
+- Approval mode: `--approval-mode yolo` (the wrapper uses this). `-y, --yolo` is the boolean alias.
+- Prompt MUST be piped via stdin. The CLI accepts a positional `query` and `-p/--prompt`, but feeding via stdin is what the wrapper enforces.
+- No `-C` flag exists; the wrapper uses `pushd` / `Push-Location`. `--include-directories` exists but has known path-resolution bugs and is not recommended.
+- PowerShell wrapper requires `$ErrorActionPreference` to NOT be `Stop` so the YOLO banner on stderr doesn't trip the catch block.
 
-```markdown
-# Task: <descriptive name>
+## See also
 
-## Context
-- Repo: C:\path\to\repo
-- Read these files first:
-  - docs/spec.md
-  - docs/changelog.md
-- Output file(s):
-  - docs/output_zh-TW.md
+- `references/delegation-targets.md` — when to use vs avoid
+- `references/wrapper.md` — full wrapper invocation, env vars, sentinels
+- `references/task-template.md` — CJK-aware task brief template
+- `references/output-contract.md` — full `.result.json` schema and status semantics
+- `references/review-checklist.md` — extended publication gate
 
-## Goal
-<what Gemini should synthesize or draft>
-
-## Language
-- Output language: Traditional Chinese
-- Tone: formal / concise / executive / technical
-- Audience: <who will read it>
-
-## Constraints
-- Preserve dates and proper nouns exactly
-- Keep terminology consistent with glossary.md
-- Do not invent facts missing from the sources
-
-## Acceptance
-- Required verification files: <paths>
-- Required sentinel string: <string if useful>
-- Claude will perform a terminology and factual review before shipping
-```
-
-### 2. Launch Gemini synchronously
-
-From Claude Code Bash:
-
-```bash
-bash .claude/skills/gemini-delegate/scripts/run_gemini.sh \
-  --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
-  --log-file .ai/gemini_log_<name>.txt \
-  --verify-file docs/output_zh-TW.md
-```
-
-PowerShell direct call is also supported:
-
-```powershell
-& "C:\Users\wenyu\mispricing-engine\.claude\skills\gemini-delegate\scripts\run_gemini.ps1" `
-    -Prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." `
-    -LogFile "C:\Users\wenyu\mispricing-engine\.ai\gemini_log_<name>.txt" `
-    -VerifyFile "C:\Users\wenyu\mispricing-engine\docs\output_zh-TW.md"
-```
-
-### 3. Read wrapper status first
-
-```bash
-cat .ai/gemini_log_<name>.txt.result.json
-```
-
-If status is `verify_failed`, the process exited but required files were missing or incomplete. Treat that as failure.
-
-### 4. Claude publication review
-
-Claude must review:
-
-- factual accuracy against source files
-- dates, names, and terminology consistency
-- tone and audience fit
-- any banned or sensitive phrasing required by the project
-
-Gemini can draft or synthesize. Claude decides whether the output is publishable.
-
-## Non-Interactive Execution Rules
-
-These wrappers already enforce the critical Gemini CLI rules:
-
-- run from the target working directory instead of using a fake `-C`
-- pass `--approval-mode yolo`
-- pipe prompts through stdin instead of a giant positional argument
-- verify expected files after exit when `--verify-file` is supplied
-
-If you write your own wrapper, preserve all four behaviors.
-
-## Quality Boundaries
-
-Gemini is useful for first drafts and synthesis, but it can still:
-
-- drift terminology across files
-- over-translate proper nouns
-- miss project-specific banned phrases
-- guess dates or context if the prompt is underspecified
-
-Do not ship its output unreviewed.
-
-## Minimal Review Checklist
-
-Before accepting delegate output:
-
-- Did Gemini cite or preserve the correct source facts?
-- Did it keep terminology consistent with project vocabulary?
-- Did it stay within the requested language and tone?
-- Did required output files actually exist on disk?
-- Does the result belong to Gemini, or should this have stayed in Claude/Codex?
-
-If the answer to the last question is wrong, fix your routing first.
+`references/examples.md` exists from earlier versions and is **stale** — its examples include code-generation tasks that contradict the current `delegation-targets.md`. Treat as historical until refreshed.

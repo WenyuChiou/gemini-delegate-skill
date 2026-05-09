@@ -2,51 +2,76 @@
 
 > [English](README.md)
 
-`gemini-delegate` 是一個給 Claude 使用的 skill，目的是把 Gemini 當成「large-context synthesis / 長文撰寫 / 英文與 CJK 輸出 / 第二意見 review」的專門工具，而不是拿來做大量程式實作。
+`gemini-delegate` 是一個給 Claude 使用的 skill,把 Google Gemini 當作「大 context 合成 / 長文撰寫 / 雙語與 CJK 寫作 / 第二意見審查」的專家。
+
+> 📚 這是 [**agentic AI 學習路徑**](https://github.com/WenyuChiou/awesome-agentic-ai-zh) 的一部分 — 一個 7 階段的 agentic AI 學習路徑,支援多語言(zh-TW · zh-CN · English)。這個 skill 在 §13(Multi-LLM Delegation)被引用。
+
+## 為什麼存在這個 Skill
+
+Claude 的工作 context 有上限,有些任務即使 Claude 技術上做得到,結果也不理想。常見兩種失敗模式:
+
+- **長文輸入塞不下。** 當需要摘要、比對、改寫橫跨多個大檔案的內容時,Gemini 較大的 context window 可以一次吃下整個全貌,而不需要 Claude 切片再拼回去。
+- **CJK / 雙語寫作品質不穩。** 長篇繁中或中英互譯,Gemini 的語感通常比 Claude 自然。這是社群觀察,不是官方 benchmark,但出現得夠頻繁,值得結構化地處理。
+
+把這類任務交給 Gemini,可以讓 Claude 留在自己的強項(判斷、術語審查、事實核對),而 Gemini 做它真正擅長的事(大 context 合成與 CJK 撰寫)。
+
+**這個 skill 划算的情境:**
+
+- 來源材料超過 Claude 舒服的 context 範圍
+- 需要長篇繁中或雙語寫作
+- 想對長文件做 reviewer-style 第二意見
+- 需要在翻譯內容裡對齊術語
+- 從多個來源草擬 release note、FAQ、摘要
+
+**這個 skill 不划算的情境:**
+
+- 任務是大量產生程式碼(改用 `codex-delegate`)
+- 任務是架構或安全審查(留在 Claude)
+- 輸入塞得進 Claude 的 context,而且品質比吞吐量重要
+- 事實準確度比草稿流暢度更重要(Claude 反正會在出貨前審一遍)
 
 ## 定位
 
-這個 skill 不是 `codex-delegate` 的 Gemini 版本。
+這個 skill **不是** `codex-delegate` 的 Gemini 版。它的工作不同:
 
-它比較適合這些工作：
+- 把大型原始材料摘要成英文或 zh-TW
+- 跨多檔合成
+- 草擬英文、雙語、或對 CJK 讀者的更新
+- 對長文件做 reviewer-style 第二意見
+- 在翻譯內容裡對齊術語
 
-- 把大量材料整理成英文或 zh-TW 摘要
-- 綜合多份文件後輸出一份整理稿
-- 起草英文、雙語或 CJK 導向的更新內容
-- 對長篇文件做 reviewer-style 第二意見審查
-- 對翻譯稿做術語一致性整理
+不是用來做大量程式碼生成或架構工作。
 
-它不適合用來做大量 code generation、架構決策或程式除錯。
+## 核心流程
 
-## 這版更新重點
+1. Claude 準備 context file,寫明 source paths、output paths、語言與限制
+2. Claude 透過 wrapper 啟動 Gemini
+3. Wrapper 可在執行後驗證指定輸出檔是否存在且非空
+4. Claude 出貨前做事實、術語、語氣審查
 
-- 範圍收斂為 synthesis 與 CJK 寫作
-- 明確區分 Gemini、Codex、Claude 的邊界
-- wrapper 會輸出機器可讀的 `<log>.result.json`
-- 新增驗證導向的 wrapper tests
-
-## 核心工作流
-
-1. Claude 先準備 context file，寫清楚來源、輸出、語言與限制。
-2. Claude 透過 wrapper 啟動 Gemini。
-3. Wrapper 可在執行後驗證預期輸出檔案是否真的存在。
-4. Claude 再做事實、術語、語氣的最終審核。
-
-Gemini 可以提供有價值的初稿，但最後是否能發布，仍然由 Claude 判斷。
+Gemini 可以產生不錯的草稿,但出不出得了門仍由 Claude 決定。
 
 ## 專案結構
 
 ```text
 gemini-delegate-skill/
-├── SKILL.md
 ├── README.md
 ├── README_zh-TW.md
 ├── scripts/
 │   ├── run_gemini.sh
 │   └── run_gemini.ps1
-├── tests/
-│   └── test_wrappers.py
-└── references/
+├── skills/
+│   └── gemini-delegate/
+│       ├── SKILL.md
+│       └── references/
+│           ├── wrapper.md
+│           ├── delegation-targets.md
+│           ├── output-contract.md
+│           ├── review-checklist.md
+│           ├── task-template.md
+│           └── examples.md
+└── tests/
+    └── test_wrappers.py
 ```
 
 ## 測試
@@ -55,24 +80,23 @@ gemini-delegate-skill/
 python -m pytest -q
 ```
 
-目前測試涵蓋：
+目前的 wrapper 測試覆蓋:
 
 - success path 的 `result.json` 輸出
-- verification failure 的回報行為
+- 驗證失敗(`verify_failed`)的處理路徑
 
 ## 安裝
 
-**1. 從 [`ai-research-skills` Claude Code marketplace](https://github.com/WenyuChiou/ai-research-skills) 裝 skill：**
+**1. 從 [`ai-research-skills` Claude Code marketplace](https://github.com/WenyuChiou/ai-research-skills) 安裝這個 skill:**
 
 ```bash
 claude plugin marketplace add WenyuChiou/ai-research-skills
 claude plugin install gemini-delegate@ai-research-skills
 ```
 
-Default scope 是 `user`（這個 OS 使用者帳號全域）。要只裝在當下 project
-加 `--scope project`。
+預設 scope 是 `user`(這個 OS 帳號、所有專案)。若只想安裝在目前專案,加 `--scope project`。
 
-**2. 確認環境裡有 Gemini CLI：**
+**2. 確認 Gemini CLI 在 `$PATH`:**
 
 ```bash
 npm install -g @google/gemini-cli
