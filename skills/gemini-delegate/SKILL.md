@@ -89,7 +89,8 @@ Gemini may: drift terminology mid-document, over-translate proper nouns, miss pr
 - `references/delegation-targets.md` — when to use vs avoid
 - `references/wrapper.md` — full wrapper invocation, env vars, sentinels
 - `references/task-template.md` — CJK-aware task brief template
-- `references/output-contract.md` — full `.result.json` schema and status semantics
+- `references/output-contract.md` — full `.result.json` schema, status semantics, `.fallback_claude` quota sentinel
 - `references/review-checklist.md` — extended publication gate
+- `references/multi-agent.md` — leaf role in router/leaves architecture; when to route through `research-hub-multi-ai` or `agent-task-splitter`
 
 `references/examples.md` exists from earlier versions and is **stale** — its examples include code-generation tasks that contradict the current `delegation-targets.md`. Treat as historical until refreshed.
