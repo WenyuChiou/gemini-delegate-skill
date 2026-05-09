@@ -25,7 +25,7 @@ bash scripts/run_gemini.sh \
 
 Optional flags:
 
-- `--repo <path>`: project root (default: `$HOME/mispricing-engine`)
+- `--repo <path>`: project root (default: the caller's `$PWD`)
 - `--model <name>`: model string for `gemini -m`
 - `--verify-file <path>`: repeat for multiple files; each must exist and be non-empty
 - `--verify-sentinel <string>`: each verify file must also contain this substring
