@@ -42,7 +42,9 @@ write_result_json() {
 }
 
 PROMPT=""
-REPO="${HOME}/mispricing-engine"
+# Default --repo to the caller's working directory; previously hardcoded to
+# the original author's mispricing-engine path, which broke fresh installs.
+REPO="${PWD}"
 MODEL="gemini-2.5-pro"
 LOG_FILE=""
 VERIFY_FILES=()

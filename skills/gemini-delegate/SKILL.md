@@ -57,7 +57,7 @@ Full routing table and examples: `references/delegation-targets.md`.
      --log-file .ai/gemini_log_<name>.txt \
      --verify-file <expected_output_path>
    ```
-   `--repo "$PWD"` overrides the wrapper default. PowerShell variant + env vars: `references/wrapper.md`.
+   `--repo` defaults to the caller's `$PWD`; pass `--repo "$PWD"` explicitly only if you want to be defensive about the working directory at invocation. PowerShell variant + env vars: `references/wrapper.md`.
 
 3. **Read status**: `cat .ai/gemini_log_<name>.txt.result.json`.
    - `success` → output still needs Claude publication review.
@@ -92,5 +92,4 @@ Gemini may: drift terminology mid-document, over-translate proper nouns, miss pr
 - `references/output-contract.md` — full `.result.json` schema, status semantics, `.fallback_claude` quota sentinel
 - `references/review-checklist.md` — extended publication gate
 - `references/multi-agent.md` — leaf role in router/leaves architecture; when to route through `research-hub-multi-ai` or `agent-task-splitter`
-
-`references/examples.md` exists from earlier versions and is **stale** — its examples include code-generation tasks that contradict the current `delegation-targets.md`. Treat as historical until refreshed.
+- `references/examples.md` — concrete invocation examples (long-context summary, CJK report, bilingual README, second-opinion review)
