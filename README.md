@@ -4,6 +4,8 @@
 
 `gemini-delegate` is a Claude-oriented skill for using Gemini as a specialist for large-context synthesis, long-form drafting, English or bilingual/CJK writing, and second-opinion review.
 
+> 📚 Part of the [**agentic AI learning roadmap**](https://github.com/WenyuChiou/awesome-agentic-ai-zh) — a 7-stage curated path for building agentic AI, multilingual (zh-TW · zh-CN · English). This skill is referenced in §13 (Multi-LLM Delegation).
+
 ## Positioning
 
 This skill is not the Gemini version of `codex-delegate`.
