@@ -2,6 +2,7 @@
 name: gemini-delegate
 description: Delegates large-context reading, bilingual or Chinese (CJK / 中文 / zh-TW) drafting, cross-file synthesis, and second-opinion review to Google Gemini CLI. Use when input exceeds Claude's working budget, when the user writes in Chinese, when terminology must align across long documents, or when a reviewer pass is needed. Trigger phrases include "summarize this in Chinese", "second-opinion review", "long-context synthesis", "draft this in zh-TW". Avoid for bulk code generation or security-sensitive coding.
 license: MIT
+compatibility: Designed for Claude Code. Portable across agentskills.io-compliant hosts; the wrapper script lives at <skill-root>/scripts/run_gemini.sh — adapt the example path to your host's skills directory (e.g. ~/.claude/skills/gemini-delegate/ on Claude Code, ~/.hermes/skills/<category>/gemini-delegate/ on Hermes).
 ---
 
 # Gemini Delegate Skill
@@ -49,9 +50,9 @@ Full routing table and examples: `references/delegation-targets.md`.
 
 1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
 
-2. **Run**: from Claude Code Bash, invoke the wrapper from its install location (user-scope skills install at `~/.claude/skills/`):
+2. **Run**: invoke the wrapper from `<skill-root>/scripts/run_gemini.sh`. On Claude Code that resolves to `~/.claude/skills/gemini-delegate/scripts/run_gemini.sh`; on other agentskills.io hosts substitute the host's skills directory.
    ```bash
-   bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
+   bash <skill-root>/scripts/run_gemini.sh \
      --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
      --repo "$PWD" \
      --log-file .ai/gemini_log_<name>.txt \
