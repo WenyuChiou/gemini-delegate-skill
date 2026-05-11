@@ -50,15 +50,15 @@ Full routing table and examples: `references/delegation-targets.md`.
 
 1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
 
-2. **Run**: invoke the wrapper from `<skill-root>/scripts/run_gemini.sh`. On Claude Code that resolves to `~/.claude/skills/gemini-delegate/scripts/run_gemini.sh`; on other agentskills.io hosts substitute the host's skills directory.
+2. **Run**: from Claude Code Bash, invoke the wrapper from its install location:
    ```bash
-   bash <skill-root>/scripts/run_gemini.sh \
+   bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
      --prompt "Read .ai/gemini_task_<name>.md and execute all instructions inside." \
      --repo "$PWD" \
      --log-file .ai/gemini_log_<name>.txt \
      --verify-file <expected_output_path>
    ```
-   `--repo` defaults to the caller's `$PWD`; pass `--repo "$PWD"` explicitly only if you want to be defensive about the working directory at invocation. PowerShell variant + env vars: `references/wrapper.md`.
+   `--repo` defaults to the caller's `$PWD`; pass `--repo "$PWD"` explicitly only if you want to be defensive about the working directory at invocation. On non-Claude-Code agentskills.io hosts, substitute the host's skills directory (e.g. `~/.hermes/skills/<category>/gemini-delegate/scripts/run_gemini.sh`). PowerShell variant + env vars: `references/wrapper.md`.
 
 3. **Read status**: `cat .ai/gemini_log_<name>.txt.result.json`.
    - `success` → output still needs Claude publication review.
