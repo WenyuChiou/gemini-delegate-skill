@@ -28,7 +28,7 @@ From a 6-round mixed-workload session (`awesome-agentic-ai-zh` 2026-05-14, see `
 | **Mirror sync** (zh-TW → zh-Hans + en, 8 files, 250 KB content) | **17-22× token reduction** | Trilingual curriculum / docs / catalog work — this is the sweet spot |
 | **Long Chinese narrative draft** (daily report, weekly review, ~5k characters output) | ~10-17× (extrapolated from R4) | MoodRing daily / 盤後日報 / 週報 / Threads post drafts |
 | **Multi-paper synthesis** (NotebookLM-style, 5-10 papers → 1 brief) | ~7-17× (extrapolated) | research-hub reading list, cross-paper terminology audit |
-| **Second-opinion review** (Claude wrote a draft; Gemini reads it) | ~5× | Adversarial review on academic abstracts, prompt engineering output |
+| **Second-opinion review** (Claude wrote a draft; Gemini reads it) | ~5× (extrapolated — R5's measured 5× is for the acceptance-gate subagent pattern, not direct Gemini review; the structure is analogous) | Adversarial review on academic abstracts, prompt engineering output |
 | **Code generation** | **1× (skill not appropriate)** | Use `codex-delegate` instead |
 | **Security-sensitive / final acceptance** | **1× (skill cannot help)** | Claude direct |
 
@@ -51,8 +51,9 @@ invoke `Skill("gemini-delegate", args="brief=...")`. Do NOT use
 `Bash("gemini -p ...")` — it triggers F1 (silent skip of .ai/ brief),
 F13 (liar mode without --verify-file), and approval-mode hangs.
 
-The only safe raw pattern is the canonical stdin-pipe:
-  cat .ai/gemini_task_<NNN>.md | gemini --yolo -p "Execute it." | head -c 10485760
+The only safe raw pattern is the canonical stdin-pipe (note `2>&1` —
+without it stderr bypasses the 10 MB cap, recreating the 7 GB log risk):
+  cat .ai/gemini_task_<NNN>.md | gemini --yolo -p "Execute it." 2>&1 | head -c 10485760
 
 Optional mechanical enforcement: a PreToolUse hook on Bash that nudges raw
 `gemini -p` toward `Skill("gemini-delegate")`. Reference:
