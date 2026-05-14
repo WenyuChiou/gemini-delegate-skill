@@ -9,6 +9,61 @@ compatibility: Designed for Claude Code. Portable across agentskills.io-complian
 
 Claude is the supervisor. Gemini drafts and synthesizes. Claude reviews terminology, facts, tone, and decides what ships.
 
+## Why use this instead of raw `gemini -p`
+
+This wrapper exists because Gemini CLI has **three footguns** that silently break shipping tasks if you bypass it:
+
+| What the wrapper handles | What raw `gemini -p "..."` costs you |
+|---|---|
+| **stdin-pipe instead of `-p` positional** | **F1 — silent failure**. Gemini CLI honors `.gitignore` by default, so `gemini -p "Read .ai/foo.md"` skips the brief entirely because `.ai/` is gitignored. The task appears to succeed (no error) but Gemini never read the brief. |
+| **`--approval-mode yolo`** | Gemini blocks on file-write approvals — your task hangs waiting for a TUI prompt that never gets answered. |
+| **No `-C` flag** | Gemini CLI does not implement `-C <dir>`. Passing it silently does nothing; your task runs in the wrong working directory. |
+
+### Measured token savings (real dogfood, not estimates)
+
+From a 6-round mixed-workload session (`awesome-agentic-ai-zh` 2026-05-14, see `agent-collab-skills/docs/measured-benefits.md`):
+
+| Workload | Saving vs Claude-inline | When it applies to you |
+|---|---|---|
+| **Mirror sync** (zh-TW → zh-Hans + en, 8 files, 250 KB content) | **17-22× token reduction** | Trilingual curriculum / docs / catalog work — this is the sweet spot |
+| **Long Chinese narrative draft** (daily report, weekly review, ~5k characters output) | ~10-17× (extrapolated from R4) | MoodRing daily / 盤後日報 / 週報 / Threads post drafts |
+| **Multi-paper synthesis** (NotebookLM-style, 5-10 papers → 1 brief) | ~7-17× (extrapolated) | research-hub reading list, cross-paper terminology audit |
+| **Second-opinion review** (Claude wrote a draft; Gemini reads it) | ~5× | Adversarial review on academic abstracts, prompt engineering output |
+| **Code generation** | **1× (skill not appropriate)** | Use `codex-delegate` instead |
+| **Security-sensitive / final acceptance** | **1× (skill cannot help)** | Claude direct |
+
+### Anti-patterns this skill prevents
+
+- **F1**: `gemini -p "Read .ai/foo.md"` silently skips the brief because `.ai/` is gitignored. Prevented by the wrapper's stdin-pipe pattern (`cat .ai/foo.md | gemini --yolo -p "Execute it."`).
+- **F13** ("liar mode"): Gemini reports task complete without actually writing output files. Prevented by the wrapper's `--verify-file` post-check that fails the run if the expected file is missing or unchanged.
+- **F14**: Operator (Claude) defaults to `Bash("gemini -p ...")` despite the rule saying use `Skill("gemini-delegate")`. Prevented by a `PreToolUse` hook on the operator side (template below).
+
+### CLAUDE.md snippet to enforce routing
+
+Drop this into your `~/.claude/CLAUDE.md` (or repo-level `CLAUDE.md`) so the rule is operational, not aspirational:
+
+```markdown
+## Gemini routing rule (enforced)
+
+For any task that is long-context CJK / Chinese narrative, multi-paper
+synthesis, second-opinion review, or terminology audit across long docs:
+invoke `Skill("gemini-delegate", args="brief=...")`. Do NOT use
+`Bash("gemini -p ...")` — it triggers F1 (silent skip of .ai/ brief),
+F13 (liar mode without --verify-file), and approval-mode hangs.
+
+The only safe raw pattern is the canonical stdin-pipe:
+  cat .ai/gemini_task_<NNN>.md | gemini --yolo -p "Execute it." | head -c 10485760
+
+Optional mechanical enforcement: a PreToolUse hook on Bash that nudges raw
+`gemini -p` toward `Skill("gemini-delegate")`. Reference:
+https://github.com/WenyuChiou/dotfiles-claude/blob/main/hooks/check_codex_skill_routing.py
+(same hook covers codex + gemini).
+```
+
+→ The hook excludes the canonical stdin-pipe pattern, so legitimate raw use
+(`cat brief.md | gemini --yolo -p "..."`) passes silently. Only the
+F1-prone `gemini -p "Read .ai/..."` shape triggers the nudge.
+
 ## Prerequisite check (do this first)
 
 Before producing any task file, wrapper command, or handoff prompt, verify the binary is on `$PATH`:
