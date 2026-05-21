@@ -12,11 +12,20 @@ Every wrapper run leaves machine-readable status at `<log-file>.result.json`. Th
   "log_file": "<path>",
   "summary": "",
   "risks": [],
-  "files_changed": [],
+  "files_changed": ["docs/output_zh-TW.md"],
   "tests_run": [],
   "timestamp_utc": "2026-04-24T00:00:00Z"
 }
 ```
+
+## Which fields the wrapper fills
+
+| Field | Source | Notes |
+|---|---|---|
+| `status` / `delegate` / `model` / `log_file` / `summary` / `timestamp_utc` | wrapper | always written |
+| `files_changed` | wrapper, **auto-derived** | `git status --porcelain` snapshot diff (before vs after the Gemini run), so it attributes edits to *this run only*. Empty `[]` when the repo is not a git work tree, when git is absent, or when the run changed nothing. A file already dirty before the run, with an unchanged porcelain status line, is intentionally not re-reported — run `git diff HEAD` for the full picture. The wrapper's own log / sentinel / `result.json` files are written *after* the snapshot, so they never leak in. This complements `--verify-file`: `--verify-file` checks that *expected* outputs exist; `files_changed` reveals *everything* Gemini touched, catching scope drift. |
+| `tests_run` | **not auto-filled** — stays `[]` | Gemini-delegate work is drafting / synthesis, not test execution; there is nothing for the wrapper to record here. Left in the schema for cross-delegate contract parity. |
+| `risks` | **not auto-filled** — stays `[]` | Risk assessment is a judgment call; it stays Claude's job during publication review. |
 
 ## Status semantics
 

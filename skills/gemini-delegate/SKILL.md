@@ -104,7 +104,7 @@ Full routing table and examples: `references/delegation-targets.md`.
 
 ## Workflow
 
-1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
+1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. For a drift-sensitive task (published report, bilingual mirror, long-context synthesis, second-opinion review) — where an invented fact, a slipped term, or a wrong language variant would hurt — also add the XML prompt blocks from `references/gemini-prompt-blocks.md` to the Goal/Language/Constraints. A tiny low-stakes draft does not need them. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
 
 2. **Run**: from Claude Code Bash, invoke the wrapper from its install location:
    ```bash
@@ -146,6 +146,7 @@ Gemini may: drift terminology mid-document, over-translate proper nouns, miss pr
 - `references/delegation-targets.md` — when to use vs avoid
 - `references/wrapper.md` — full wrapper invocation, env vars, sentinels
 - `references/task-template.md` — CJK-aware task brief template
+- `references/gemini-prompt-blocks.md` — XML prompt blocks + recipes + anti-patterns for drift-sensitive briefs
 - `references/output-contract.md` — full `.result.json` schema, status semantics, `.fallback_claude` quota sentinel
 - `references/review-checklist.md` — extended publication gate
 - `references/multi-agent.md` — leaf role in router/leaves architecture; when to route through `research-hub-multi-ai` or `agent-task-splitter`
