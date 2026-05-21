@@ -12,6 +12,42 @@ the marketplace repo).
 
 ## [Unreleased]
 
+### Added
+
+- `references/gemini-prompt-blocks.md` — composable XML prompt blocks
+  (`<language_variant_lock>`, `<source_fidelity>`, `<glossary_grounding>`,
+  `<proper_noun_policy>`, `<reviewer_role>`, …), four task recipes, and a
+  prompt anti-pattern table for drift-sensitive briefs. Designed for Gemini's
+  actual failure modes (terminology drift, over-translated proper nouns,
+  invented dates, zh-TW/zh-CN mixing) — a sibling of, not a copy of,
+  `codex-delegate`'s `codex-prompt-blocks.md`.
+- `tests/test_wrappers.py`: regression coverage for `files_changed` —
+  populated on a git repo (bash + PowerShell) and `[]` on a non-git repo.
+
+### Changed
+
+- `scripts/run_gemini.sh` and `scripts/run_gemini.ps1` now auto-populate the
+  `files_changed` field of `result.json`. The wrapper takes a
+  `git status --porcelain` snapshot before and after the Gemini run and diffs
+  them, so `files_changed` attributes edits to that run only. It degrades to
+  `[]` when the repo is not a git work tree, git is absent, or nothing
+  changed. The wrapper's own log / sentinel / `result.json` files are written
+  after the snapshot, so they never leak in. This complements `--verify-file`:
+  `--verify-file` checks that *expected* outputs exist; `files_changed`
+  reveals *everything* Gemini touched, catching scope drift.
+- `SKILL.md` and `references/task-template.md` now point drift-sensitive
+  tasks (published reports, bilingual mirrors, long-context synthesis,
+  second-opinion review) at the new prompt-blocks reference; tiny low-stakes
+  drafts keep the flat template.
+- `references/output-contract.md`: documented which `result.json` fields the
+  wrapper fills. `tests_run` and `risks` are deliberately *not* auto-filled —
+  Gemini-delegate work is drafting, not test execution, and risk is a
+  judgment call; both stay Claude's to fill during publication review.
+- `scripts/run_gemini.ps1` `Write-ResultJson` now assembles JSON by hand:
+  Windows PowerShell 5.1 `ConvertTo-Json` renders an empty `@()` hashtable
+  property as `null`, not `[]`, which broke the array contract. Hand-built
+  JSON also keeps the two wrappers byte-compatible.
+
 ## [0.1.0] - 2026-05-14
 
 The initial published version. Captures the skill state at commit

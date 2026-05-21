@@ -53,28 +53,83 @@ function Write-ResultJson {
     param(
         [string]$Status,
         [string]$ModelUsed,
-        [string]$Summary
+        [string]$Summary,
+        [string[]]$FilesChanged = @()
     )
 
-    $payload = [ordered]@{
-        status        = $Status
-        delegate      = "gemini"
-        model         = $ModelUsed
-        log_file      = $logPath
-        summary       = $Summary
-        risks         = @()
-        files_changed = @()
-        tests_run     = @()
-        timestamp_utc = [DateTime]::UtcNow.ToString("o")
+    # Assemble JSON by hand. Windows PowerShell 5.1 `ConvertTo-Json` renders an
+    # empty `@()` hashtable property as `null`, not `[]`, which would break the
+    # array contract for files_changed / risks / tests_run. Each scalar is
+    # escaped by running `ConvertTo-Json` on the single value. This mirrors the
+    # hand-built JSON in run_gemini.sh, keeping the two wrappers byte-compatible.
+    function ConvertTo-JsonScalar($value) {
+        if ($null -eq $value) { $value = "" }
+        return ([string]$value | ConvertTo-Json -Compress)
     }
 
-    $json = $payload | ConvertTo-Json -Depth 5
+    $filesArr =
+        if ($FilesChanged -and @($FilesChanged).Count -gt 0) {
+            "[" + ((@($FilesChanged) | ForEach-Object { ConvertTo-JsonScalar $_ }) -join ",") + "]"
+        } else { "[]" }
+
+    $timestamp = [DateTime]::UtcNow.ToString("o")
+    $json = (@(
+        "{",
+        ('  "status": ' + (ConvertTo-JsonScalar $Status) + ","),
+        '  "delegate": "gemini",',
+        ('  "model": ' + (ConvertTo-JsonScalar $ModelUsed) + ","),
+        ('  "log_file": ' + (ConvertTo-JsonScalar $logPath) + ","),
+        ('  "summary": ' + (ConvertTo-JsonScalar $Summary) + ","),
+        '  "risks": [],',
+        ('  "files_changed": ' + $filesArr + ","),
+        '  "tests_run": [],',
+        ('  "timestamp_utc": ' + (ConvertTo-JsonScalar $timestamp)),
+        "}"
+    ) -join "`n")
+
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($resultPath, $json, $utf8NoBom)
 }
 
+# Snapshot the repo's changed-file set via `git status --porcelain`.
+# Returns an empty array when the path is not a git work tree (or git is
+# absent), so files_changed degrades to [] instead of failing the run.
+function Get-GitStatusSnapshot {
+    param([string]$Path)
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { return @() }
+    $out = & git -C $Path -c core.quotePath=false status --porcelain 2>$null
+    if ($LASTEXITCODE -ne 0) { return @() }
+    # `git status` on a clean repo yields $null; strip it so the result is a
+    # true empty array, not @($null) (a 1-element array holding null).
+    return @($out | Where-Object { $null -ne $_ })
+}
+
+# Diff two porcelain snapshots; return the paths that became changed during
+# the run. A file already dirty before the run, with an unchanged porcelain
+# status line, is intentionally not re-reported (it was not this run's doing).
+function Get-FilesChanged {
+    param([string[]]$Before = @(), [string[]]$After = @())
+    $beforeSet = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($line in $Before) { [void]$beforeSet.Add($line) }
+    $paths = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($line in $After) {
+        if ($beforeSet.Contains($line)) { continue }
+        $entry = if ($line.Length -gt 3) { $line.Substring(3) } else { "" }
+        if ($entry -match ' -> ') { $entry = ($entry -split ' -> ', 2)[1] }   # renamed
+        $entry = $entry.Trim().Trim('"')
+        if ($entry) { [void]$paths.Add($entry) }
+    }
+    return @($paths | Sort-Object -Unique)
+}
+
 $promptFile = "$env:TEMP\gemini_prompt_$(Get-Random).txt"
 $Prompt | Out-File -FilePath $promptFile -Encoding utf8
+
+# Snapshot the repo before the run so files_changed attributes edits to this
+# run only. The wrapper's own log / sentinel / result files are written after
+# the after-snapshot, so they never leak in.
+$changedBefore = Get-GitStatusSnapshot -Path $Repo
+$filesChanged = @()
 
 try {
     Push-Location $Repo
@@ -88,19 +143,22 @@ try {
         Remove-Item $promptFile -ErrorAction SilentlyContinue
     }
 
+    $changedAfter = Get-GitStatusSnapshot -Path $Repo
+    $filesChanged = @(Get-FilesChanged -Before $changedBefore -After $changedAfter)
+
     if (Test-QuotaError -Output $output -ExitCode $exitCode) {
         Write-Warning "Gemini quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle"
         "[GEMINI QUOTA EXCEEDED at $(Get-Date -Format o)]`n$output" | Out-File $logPath -Encoding utf8
         "ALL_QUOTA_EXCEEDED|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
         "FALLBACK_TO_CLAUDE|$(Get-Date -Format o)" | Out-File $fallbackPath -Encoding utf8
         "FALLBACK|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exceeded; Claude must take over."
+        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exceeded; Claude must take over." -FilesChanged $filesChanged
         exit 0
     }
 
     if ($exitCode -ne 0) {
         $output | Out-File $errorPath -Encoding utf8
-        Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure."
+        Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure." -FilesChanged $filesChanged
         exit 1
     }
 
@@ -123,28 +181,34 @@ try {
         if ($verifyFail) {
             "[VERIFICATION FAILED at $(Get-Date -Format o)]`n[MODEL_USED: gemini/$Model]`n$output" | Out-File $logPath -Encoding utf8
             "VERIFY_FAILED|gemini/$Model|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
-            Write-ResultJson -Status "verify_failed" -ModelUsed "gemini/$Model" -Summary "Gemini exited, but required output files failed verification."
+            Write-ResultJson -Status "verify_failed" -ModelUsed "gemini/$Model" -Summary "Gemini exited, but required output files failed verification." -FilesChanged $filesChanged
             exit 1
         }
     }
 
     "[MODEL_USED: gemini/$Model]`n$output" | Out-File $logPath -Encoding utf8
     "DONE|gemini/$Model|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-    Write-ResultJson -Status "success" -ModelUsed "gemini/$Model" -Summary "Gemini completed successfully. Claude must still review facts, terminology, and tone."
+    Write-ResultJson -Status "success" -ModelUsed "gemini/$Model" -Summary "Gemini completed successfully. Claude must still review facts, terminology, and tone." -FilesChanged $filesChanged
 }
 catch {
     $errMsg = $_.Exception.Message
+
+    # Best-effort after-snapshot: a PowerShell-level exception may still have
+    # left Gemini edits on disk, so re-derive files_changed here too (the bash
+    # wrapper's error path populates it for parity).
+    $changedAfter = Get-GitStatusSnapshot -Path $Repo
+    $filesChanged = @(Get-FilesChanged -Before $changedBefore -After $changedAfter)
 
     if (Test-QuotaError -Output $errMsg -ExitCode 0) {
         "[GEMINI QUOTA EXCEPTION at $(Get-Date -Format o)]`n$errMsg" | Out-File $logPath -Encoding utf8
         "ALL_QUOTA_EXCEEDED|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
         "FALLBACK_TO_CLAUDE|$(Get-Date -Format o)" | Out-File $fallbackPath -Encoding utf8
         "FALLBACK|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exception triggered fallback to Claude."
+        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exception triggered fallback to Claude." -FilesChanged $filesChanged
         exit 0
     }
 
     $errMsg | Out-File $errorPath -Encoding utf8
-    Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure."
+    Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure." -FilesChanged $filesChanged
     exit 1
 }
