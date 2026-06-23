@@ -22,5 +22,6 @@ jobs:
       - name: Install test deps
         run: pip install pytest
       - name: Run wrapper tests
+        # Tests use fake AGY_PATH/GEMINI_PATH binaries; CI does not need real CLIs.
         run: python -m pytest tests/ -q
         shell: bash

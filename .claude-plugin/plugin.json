@@ -1,7 +1,7 @@
 {
   "name": "gemini-delegate",
-  "description": "Hand long-context reading, bilingual rewrites, second-opinion review, and Traditional Chinese / CJK output from Claude to Gemini CLI.",
-  "version": "0.1.0",
+  "description": "Hand long-context reading, bilingual rewrites, second-opinion review, and Traditional Chinese / CJK output from Claude to Antigravity CLI (agy) or legacy Gemini CLI.",
+  "version": "0.2.0",
   "author": {
     "name": "Wenyu Chiou"
   },
@@ -10,6 +10,8 @@
   "license": "MIT",
   "keywords": [
     "gemini",
+    "antigravity",
+    "agy",
     "delegation",
     "multi-ai",
     "long-context",

@@ -110,6 +110,46 @@ def test_run_gemini_sh_writes_result_contract(tmp_path: Path) -> None:
     assert result["model"] == "gemini/gemini-2.5-pro"
 
 
+@pytest.mark.skipif(_BASH is None, reason="bash not available")
+def test_run_gemini_sh_agy_backend(tmp_path: Path) -> None:
+    """Wrapper uses AGY_PATH when set, delegate field says 'agy'."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fake_agy = tmp_path / "fake_agy.sh"
+    fake_agy.write_text("#!/usr/bin/env bash\necho 'agy ok'\n", encoding="utf-8", newline="\n")
+    if sys.platform != "win32":
+        os.chmod(fake_agy, 0o755)
+    log_file = repo / ".ai" / "agy_log.txt"
+    env = os.environ.copy()
+    env["AGY_PATH"] = to_bash_path(fake_agy)
+    env.pop("GEMINI_PATH", None)
+
+    proc = subprocess.run(
+        [
+            _BASH,
+            "-lc",
+            (
+                f"chmod +x '{to_bash_path(fake_agy)}' && "
+                f"AGY_PATH='{to_bash_path(fake_agy)}' "
+                f"'{to_bash_path(Path(_BASH))}' '{to_bash_path(ROOT / 'scripts' / 'run_gemini.sh')}' "
+                f"--prompt 'test agy' "
+                f"--repo '{to_bash_path(repo)}' "
+                f"--log-file '{to_bash_path(log_file)}'"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(log_file.with_suffix(log_file.suffix + ".result.json").read_text(encoding="utf-8-sig"))
+    assert result["status"] == "success"
+    assert result["delegate"] == "agy"
+    assert result["model"].startswith("agy/")
+
+
 @pytest.mark.skipif(shutil.which("powershell") is None, reason="powershell not on PATH")
 def test_run_gemini_ps1_reports_verify_failed(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
@@ -149,3 +189,43 @@ def test_run_gemini_ps1_reports_verify_failed(tmp_path: Path) -> None:
     result = json.loads(log_file.with_suffix(log_file.suffix + ".result.json").read_text(encoding="utf-8-sig"))
     assert result["status"] == "verify_failed"
     assert result["delegate"] == "gemini"
+    assert result["model"] == "gemini/gemini-2.5-pro"
+
+
+@pytest.mark.skipif(shutil.which("powershell") is None, reason="powershell not on PATH")
+def test_run_gemini_ps1_agy_backend(tmp_path: Path) -> None:
+    """PowerShell wrapper uses AGY_PATH, delegate field says 'agy'."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    fake_agy = tmp_path / "agy.cmd"
+    fake_agy.write_text("@echo off\r\necho agy ok\r\n", encoding="utf-8")
+    log_file = repo / ".ai" / "agy_ps_log.txt"
+    env = os.environ.copy()
+    env["AGY_PATH"] = str(fake_agy)
+    env.pop("GEMINI_PATH", None)
+
+    proc = subprocess.run(
+        [
+            "powershell",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(ROOT / "scripts" / "run_gemini.ps1"),
+            "-Prompt",
+            "test agy",
+            "-Repo",
+            str(repo),
+            "-LogFile",
+            str(log_file),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(log_file.with_suffix(log_file.suffix + ".result.json").read_text(encoding="utf-8-sig"))
+    assert result["status"] == "success"
+    assert result["delegate"] == "agy"
+    assert result["model"].startswith("agy/")

@@ -4,7 +4,7 @@
 
 | Route to | Best for | Avoid |
 |----------|----------|-------|
-| `Gemini` | Large-context summarization, English or zh-TW / CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
+| `Gemini / Antigravity CLI` | Large-context summarization, English or zh-TW / CJK writing, bilingual synthesis, reviewer-style second opinion, release-note drafting | Bulk code generation, architecture decisions, security-sensitive coding |
 | `Codex` | Mechanical implementation, refactors, test scaffolding, batch edits | Large-context reading and nuanced synthesis |
 | `Claude` | Requirements, acceptance judgment, debugging root cause, final publication review | Long repetitive drafting |
 
@@ -27,4 +27,4 @@
 
 ## Decision rule of thumb
 
-If the task is "read a lot, synthesize, compare, or rewrite carefully in English or Chinese," Gemini is a good candidate. If the task is "decide" or "execute code changes," it isn't.
+If the task is "read a lot, synthesize, compare, or rewrite carefully in English or Chinese," Gemini / Antigravity CLI is a good candidate. If the task is "decide" or "execute code changes," it isn't.

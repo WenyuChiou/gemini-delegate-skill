@@ -19,6 +19,33 @@ json_escape() {
     "$PYTHON_JSON_BIN" -c 'import json,sys; print(json.dumps(sys.stdin.read()))'
 }
 
+resolve_backend() {
+    if [[ -n "${AGY_PATH:-}" ]] && command -v "$AGY_PATH" >/dev/null 2>&1; then
+        BACKEND_BIN="$AGY_PATH"
+        BACKEND_NAME="agy"
+        return 0
+    fi
+    if [[ -n "${GEMINI_PATH:-}" ]] && command -v "$GEMINI_PATH" >/dev/null 2>&1; then
+        BACKEND_BIN="$GEMINI_PATH"
+        BACKEND_NAME="gemini"
+        return 0
+    fi
+    if command -v agy >/dev/null 2>&1; then
+        BACKEND_BIN="agy"
+        BACKEND_NAME="agy"
+        return 0
+    fi
+    if command -v gemini >/dev/null 2>&1; then
+        BACKEND_BIN="gemini"
+        BACKEND_NAME="gemini"
+        return 0
+    fi
+    echo "Error: neither 'agy' (Antigravity CLI) nor 'gemini' (Gemini CLI) found on PATH." >&2
+    echo "Install Antigravity CLI: curl -fsSL https://antigravity.google/cli/install.sh | bash" >&2
+    echo "Or set AGY_PATH or GEMINI_PATH environment variable." >&2
+    exit 1
+}
+
 write_result_json() {
     local status="$1"
     local model="$2"
@@ -29,7 +56,7 @@ write_result_json() {
     {
         printf '{\n'
         printf '  "status": %s,\n' "$(printf '%s' "$status" | json_escape)"
-        printf '  "delegate": "gemini",\n'
+        printf '  "delegate": %s,\n' "$(printf '%s' "$BACKEND_NAME" | json_escape)"
         printf '  "model": %s,\n' "$(printf '%s' "$model" | json_escape)"
         printf '  "log_file": %s,\n' "$(printf '%s' "$LOG_PATH" | json_escape)"
         printf '  "summary": %s,\n' "$(printf '%s' "$summary" | json_escape)"
@@ -106,32 +133,37 @@ is_quota_error() {
 PROMPT_FILE="$(mktemp /tmp/gemini_prompt_XXXXXX.txt)"
 printf '%s' "$PROMPT" > "$PROMPT_FILE"
 
-GEMINI_BIN="${GEMINI_PATH:-gemini}"
 OUTPUT=""
 EXIT_CODE=0
 
+resolve_backend
+
 pushd "$REPO" > /dev/null
-OUTPUT=$("$GEMINI_BIN" -m "$MODEL" --approval-mode yolo < "$PROMPT_FILE" 2>&1) || EXIT_CODE=$?
+if [[ "$BACKEND_NAME" == "agy" ]]; then
+    OUTPUT=$(cat "$PROMPT_FILE" | "$BACKEND_BIN" -m "$MODEL" --yolo - 2>&1) || EXIT_CODE=$?
+else
+    OUTPUT=$("$BACKEND_BIN" -m "$MODEL" --approval-mode yolo < "$PROMPT_FILE" 2>&1) || EXIT_CODE=$?
+fi
 popd > /dev/null
 rm -f "$PROMPT_FILE"
 
 if is_quota_error "$OUTPUT" "$EXIT_CODE"; then
-    echo "Gemini quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle" >&2
+    echo "$BACKEND_NAME quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle" >&2
     {
-        echo "[GEMINI QUOTA EXCEEDED at $(date -u +%Y-%m-%dT%H:%M:%SZ)]"
+        echo "[${BACKEND_NAME^^} QUOTA EXCEEDED at $(date -u +%Y-%m-%dT%H:%M:%SZ)]"
         echo "$OUTPUT"
     } > "$LOG_PATH"
     echo "ALL_QUOTA_EXCEEDED|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
     echo "FALLBACK_TO_CLAUDE|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FALLBACK_PATH"
     echo "FALLBACK|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DONE_PATH"
-    write_result_json "fallback" "gemini/$MODEL" "Gemini quota exceeded; Claude must take over."
+    write_result_json "fallback" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME quota exceeded; Claude must take over."
     exit 0
 fi
 
 if [[ "$EXIT_CODE" -ne 0 ]]; then
-    echo "Gemini hard failure (exit $EXIT_CODE)" >&2
+    echo "$BACKEND_NAME hard failure (exit $EXIT_CODE)" >&2
     echo "$OUTPUT" > "$ERROR_PATH"
-    write_result_json "error" "gemini/$MODEL" "Gemini exited with a hard failure."
+    write_result_json "error" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited with a hard failure."
     exit 1
 fi
 
@@ -151,18 +183,18 @@ if [[ "${#VERIFY_FILES[@]}" -gt 0 ]]; then
     if [[ "$VERIFY_FAIL" -eq 1 ]]; then
         {
             echo "[VERIFICATION FAILED at $(date -u +%Y-%m-%dT%H:%M:%SZ)]"
-            echo "[MODEL_USED: gemini/$MODEL]"
+            echo "[MODEL_USED: $BACKEND_NAME/$MODEL]"
             echo "$OUTPUT"
         } > "$LOG_PATH"
-        echo "VERIFY_FAILED|gemini/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
-        write_result_json "verify_failed" "gemini/$MODEL" "Gemini exited, but required output files failed verification."
+        echo "VERIFY_FAILED|$BACKEND_NAME/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
+        write_result_json "verify_failed" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited, but required output files failed verification."
         exit 1
     fi
 fi
 
 {
-    echo "[MODEL_USED: gemini/$MODEL]"
+    echo "[MODEL_USED: $BACKEND_NAME/$MODEL]"
     echo "$OUTPUT"
 } > "$LOG_PATH"
-echo "DONE|gemini/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DONE_PATH"
-write_result_json "success" "gemini/$MODEL" "Gemini completed successfully. Claude must still review facts, terminology, and tone."
+echo "DONE|$BACKEND_NAME/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DONE_PATH"
+write_result_json "success" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME completed successfully. Claude must still review facts, terminology, and tone."

@@ -58,7 +58,7 @@ function Write-ResultJson {
 
     $payload = [ordered]@{
         status        = $Status
-        delegate      = "gemini"
+        delegate      = $backendName
         model         = $ModelUsed
         log_file      = $logPath
         summary       = $Summary
@@ -73,14 +73,39 @@ function Write-ResultJson {
     [System.IO.File]::WriteAllText($resultPath, $json, $utf8NoBom)
 }
 
+function Resolve-Backend {
+    if ($env:AGY_PATH -and (Get-Command $env:AGY_PATH -ErrorAction SilentlyContinue)) {
+        return @{ Bin = $env:AGY_PATH; Name = "agy" }
+    }
+    if ($env:GEMINI_PATH -and (Get-Command $env:GEMINI_PATH -ErrorAction SilentlyContinue)) {
+        return @{ Bin = $env:GEMINI_PATH; Name = "gemini" }
+    }
+    if (Get-Command "agy" -ErrorAction SilentlyContinue) {
+        return @{ Bin = "agy"; Name = "agy" }
+    }
+    if (Get-Command "gemini" -ErrorAction SilentlyContinue) {
+        return @{ Bin = "gemini"; Name = "gemini" }
+    }
+    throw "Neither 'agy' (Antigravity CLI) nor 'gemini' (Gemini CLI) found. Install: https://antigravity.google/cli/install.sh"
+}
+
 $promptFile = "$env:TEMP\gemini_prompt_$(Get-Random).txt"
 $Prompt | Out-File -FilePath $promptFile -Encoding utf8
+
+$backendName = "unknown"
 
 try {
     Push-Location $Repo
     try {
-        $geminiBin = if ($env:GEMINI_PATH) { $env:GEMINI_PATH } else { "gemini" }
-        $output = Get-Content $promptFile -Raw -Encoding utf8 | & $geminiBin -m $Model --approval-mode yolo 2>&1 | Out-String
+        $backend = Resolve-Backend
+        $backendBin = $backend.Bin
+        $backendName = $backend.Name
+        if ($backendName -eq "agy") {
+            $output = Get-Content $promptFile -Raw -Encoding utf8 | & $backendBin -m $Model --yolo - 2>&1 | Out-String
+        }
+        else {
+            $output = Get-Content $promptFile -Raw -Encoding utf8 | & $backendBin -m $Model --approval-mode yolo 2>&1 | Out-String
+        }
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -89,18 +114,18 @@ try {
     }
 
     if (Test-QuotaError -Output $output -ExitCode $exitCode) {
-        Write-Warning "Gemini quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle"
-        "[GEMINI QUOTA EXCEEDED at $(Get-Date -Format o)]`n$output" | Out-File $logPath -Encoding utf8
+        Write-Warning "$backendName quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle"
+        "[$($backendName.ToUpperInvariant()) QUOTA EXCEEDED at $(Get-Date -Format o)]`n$output" | Out-File $logPath -Encoding utf8
         "ALL_QUOTA_EXCEEDED|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
         "FALLBACK_TO_CLAUDE|$(Get-Date -Format o)" | Out-File $fallbackPath -Encoding utf8
         "FALLBACK|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exceeded; Claude must take over."
+        Write-ResultJson -Status "fallback" -ModelUsed "$backendName/$Model" -Summary "$backendName quota exceeded; Claude must take over."
         exit 0
     }
 
     if ($exitCode -ne 0) {
         $output | Out-File $errorPath -Encoding utf8
-        Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure."
+        Write-ResultJson -Status "error" -ModelUsed "$backendName/$Model" -Summary "$backendName exited with a hard failure."
         exit 1
     }
 
@@ -121,30 +146,30 @@ try {
             }
         }
         if ($verifyFail) {
-            "[VERIFICATION FAILED at $(Get-Date -Format o)]`n[MODEL_USED: gemini/$Model]`n$output" | Out-File $logPath -Encoding utf8
-            "VERIFY_FAILED|gemini/$Model|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
-            Write-ResultJson -Status "verify_failed" -ModelUsed "gemini/$Model" -Summary "Gemini exited, but required output files failed verification."
+            "[VERIFICATION FAILED at $(Get-Date -Format o)]`n[MODEL_USED: $backendName/$Model]`n$output" | Out-File $logPath -Encoding utf8
+            "VERIFY_FAILED|$backendName/$Model|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
+            Write-ResultJson -Status "verify_failed" -ModelUsed "$backendName/$Model" -Summary "$backendName exited, but required output files failed verification."
             exit 1
         }
     }
 
-    "[MODEL_USED: gemini/$Model]`n$output" | Out-File $logPath -Encoding utf8
-    "DONE|gemini/$Model|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-    Write-ResultJson -Status "success" -ModelUsed "gemini/$Model" -Summary "Gemini completed successfully. Claude must still review facts, terminology, and tone."
+    "[MODEL_USED: $backendName/$Model]`n$output" | Out-File $logPath -Encoding utf8
+    "DONE|$backendName/$Model|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
+    Write-ResultJson -Status "success" -ModelUsed "$backendName/$Model" -Summary "$backendName completed successfully. Claude must still review facts, terminology, and tone."
 }
 catch {
     $errMsg = $_.Exception.Message
 
     if (Test-QuotaError -Output $errMsg -ExitCode 0) {
-        "[GEMINI QUOTA EXCEPTION at $(Get-Date -Format o)]`n$errMsg" | Out-File $logPath -Encoding utf8
+        "[$($backendName.ToUpperInvariant()) QUOTA EXCEPTION at $(Get-Date -Format o)]`n$errMsg" | Out-File $logPath -Encoding utf8
         "ALL_QUOTA_EXCEEDED|$(Get-Date -Format o)" | Out-File $errorPath -Encoding utf8
         "FALLBACK_TO_CLAUDE|$(Get-Date -Format o)" | Out-File $fallbackPath -Encoding utf8
         "FALLBACK|$(Get-Date -Format o)" | Out-File $donePath -Encoding utf8
-        Write-ResultJson -Status "fallback" -ModelUsed "gemini/$Model" -Summary "Gemini quota exception triggered fallback to Claude."
+        Write-ResultJson -Status "fallback" -ModelUsed "$backendName/$Model" -Summary "$backendName quota exception triggered fallback to Claude."
         exit 0
     }
 
     $errMsg | Out-File $errorPath -Encoding utf8
-    Write-ResultJson -Status "error" -ModelUsed "gemini/$Model" -Summary "Gemini exited with a hard failure."
+    Write-ResultJson -Status "error" -ModelUsed "$backendName/$Model" -Summary "$backendName exited with a hard failure."
     exit 1
 }

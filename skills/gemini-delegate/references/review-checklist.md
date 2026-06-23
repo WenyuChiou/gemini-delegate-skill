@@ -29,6 +29,7 @@ Gemini drafts; Claude decides what ships. Before accepting:
 ## Routing sanity
 
 - [ ] Was Gemini the right delegate for this task, or should this have stayed in Claude / gone to Codex?
+- [ ] Does `<log>.result.json` show the expected backend in `delegate` (`agy` or `gemini`)?
 
 ## Common drift to watch for
 

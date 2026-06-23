@@ -1,12 +1,14 @@
 # Gemini Delegation Examples
 
-All examples use bash syntax (Claude Code Bash tool = git-bash on Windows). Never use `cd /d` or `type` — those are CMD-only. Use `cd /c/path` and `cat` instead. For prompt-template skeletons of common shapes, see `task-template.md`. For when *not* to delegate to Gemini, see `delegation-targets.md`.
+The wrapper auto-detects `agy` (Antigravity CLI) or `gemini` (legacy). Examples show wrapper invocations that work with either backend.
+
+All examples use bash syntax (Claude Code Bash tool = git-bash on Windows). Never use `cd /d` or `type`; those are CMD-only. Use `cd /c/path` and `cat` instead. For prompt-template skeletons of common shapes, see `task-template.md`. For when not to delegate to Gemini / Antigravity CLI, see `delegation-targets.md`.
 
 ## Recommended: use the wrapper
 
-The `run_gemini.sh` script enforces all three hard rules automatically (`pushd` instead of `-C`, `--approval-mode yolo`, stdin pipe), plus quota fallback and file-write verification. Prefer it over raw `gemini` calls.
+The `run_gemini.sh` script enforces all three hard rules automatically (`pushd` instead of `-C`, backend-specific approval flags, stdin pipe), plus quota fallback and file-write verification. Prefer it over raw CLI calls.
 
-`--repo` defaults to the caller's `$PWD` (since [#?]). Pass it explicitly only if you want to be defensive.
+`--repo` defaults to the caller's `$PWD`. Pass it explicitly only if you want to be defensive.
 
 ## Example 1: Long-context summarization
 
@@ -55,31 +57,31 @@ bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
 
 ## Example 2: Chinese financial report
 
-A 繁體中文 weekly market update — Gemini's CJK + long-form drafting strength.
+A Traditional Chinese weekly market update that benefits from long-context CJK drafting.
 
 Context file (`.ai/gemini_task_report.md`):
 
 ```markdown
-# Task: Generate Weekly Americas Update (美洲更新)
+# Task: Generate Weekly Americas Update
 
 ## Goal
-Write a ~800 word Threads post in 繁體中文 covering this week's macro developments.
+Write a ~800 word Threads post in Traditional Chinese covering this week's macro developments.
 
 ## Structure
-1. 本週觀察 — key observation with framework reference
-2. 數據解讀 — data interpretation (hedged language, no absolutes)
-3. 策略思考 — what this means for credit spread positioning
-4. 下週關注 — upcoming events to watch
+1. Key observation with framework reference
+2. Data interpretation with hedged language and no absolutes
+3. What this means for credit-spread positioning
+4. Upcoming events to watch
 
 ## Data Points
-- SPY: 525→531 (+1.1%), VIX: 14.2→13.8
-- 10Y yield: 4.35%→4.28%
+- SPY: 525.31 (+1.1%), VIX: 14.2 (-3.8)
+- 10Y yield: 4.35% (-0.28%)
 - Fed minutes: dovish tilt, 2 cuts still priced
 
 ## Style Rules
-- Use hedged language: 可能、或許、值得觀察
-- Reference frameworks by name (they ARE the hook)
-- No sensitive words: use 遠程武器 not 飛彈, 地緣緊張 not 戰爭
+- Use hedged language
+- Reference frameworks by name
+- Preserve proper nouns and dates exactly
 - Output file: .ai/gemini_result_report.md
 ```
 
@@ -109,7 +111,7 @@ Claude reviews terminology consistency and any over-translated proper nouns befo
 
 ## Example 4: Second-opinion review
 
-Have Gemini review a design doc Claude already drafted.
+Have the backend review a design doc Claude already drafted.
 
 ```bash
 cd ~/myproject
@@ -119,15 +121,19 @@ bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
   --verify-file .ai/gemini_review_auth.md
 ```
 
-Treat the review as a hint, not a verdict — Claude still owns acceptance.
+Treat the review as a hint, not a verdict; Claude still owns acceptance.
 
-## Raw `gemini` invocation (skip the wrapper)
+## Raw invocation (skip the wrapper)
 
 If you skip the wrapper, you must enforce the three hard rules yourself:
 
 ```bash
 cd ~/myproject
-# Pipe via stdin, --approval-mode yolo, run from project dir (no -C)
+
+# Antigravity CLI: pipe via stdin, use --yolo, append "-" to read stdin.
+cat .ai/gemini_task_summary.md | agy -m gemini-2.5-pro --yolo - > .ai/gemini_log_summary.txt 2>&1
+
+# Legacy Gemini CLI: pipe via stdin, use --approval-mode yolo, run from project dir.
 gemini --approval-mode yolo < .ai/gemini_task_summary.md > .ai/gemini_log_summary.txt 2>&1
 ```
 
@@ -137,8 +143,8 @@ The wrapper is preferred because it also writes `result.json`, the `.fallback_cl
 
 These were in earlier versions of this file but contradict `delegation-targets.md`:
 
-- Multi-file Python refactors → route to `codex-delegate`.
-- React component generation → route to `codex-delegate`.
-- Test scaffolding → route to `codex-delegate`.
+- Multi-file Python refactors: route to `codex-delegate`.
+- React component generation: route to `codex-delegate`.
+- Test scaffolding: route to `codex-delegate`.
 
-Code generation in general is a Codex job, not a Gemini job.
+Code generation in general is a Codex job, not a Gemini / Antigravity CLI job.

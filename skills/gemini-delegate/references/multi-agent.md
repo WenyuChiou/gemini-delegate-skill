@@ -33,7 +33,7 @@ When a router has already written your task brief, the workflow shrinks:
    - From `agent-task-splitter`: `cat .coord/plan.yml` to see other agents' tasks, dependencies, success criteria.
    - From `research-hub-multi-ai`: `cat .coord/multi_ai_plan.md` for the same.
 2. **Read your task brief**: `.ai/gemini_task_<NNN>_<slug>.md` (the path the router put it at).
-3. **Run the wrapper as usual** (see `SKILL.md` workflow step 2). Pass `--verify-file` for any expected output path so the wrapper can mark `verify_failed` if Gemini didn't produce it.
+3. **Run the wrapper as usual** (see `SKILL.md` workflow step 2). The leaf uses `agy` or `gemini`, auto-detected by the wrapper. Pass `--verify-file` for any expected output path so the wrapper can mark `verify_failed` if the backend didn't produce it.
 4. **Emit `result.json` per the contract** so the reconciler can verify success criteria programmatically.
 
 The brief itself follows `task-template.md`. The success-criteria checks happen at the reconciler level, not inside this skill.

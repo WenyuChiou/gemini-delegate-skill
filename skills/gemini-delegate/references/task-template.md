@@ -1,6 +1,6 @@
 # Gemini task brief template
 
-Save the brief at `.ai/gemini_task_<name>.md`.
+Save the brief at `.ai/gemini_task_<name>.md`. Briefs are backend-agnostic; the wrapper chooses `agy` or legacy `gemini`.
 
 ## Template
 
