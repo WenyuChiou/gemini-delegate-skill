@@ -24,7 +24,8 @@ resolve_backend() {
         BACKEND_BIN="$AGY_PATH"
         BACKEND_NAME="agy"
         return 0
-    fi    if [[ -n "${GEMINI_PATH:-}" ]] && command -v "$GEMINI_PATH" >/dev/null 2>&1; then
+    fi
+    if [[ -n "${GEMINI_PATH:-}" ]] && command -v "$GEMINI_PATH" >/dev/null 2>&1; then
         BACKEND_BIN="$GEMINI_PATH"
         BACKEND_NAME="gemini"
         return 0
