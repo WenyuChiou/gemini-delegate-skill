@@ -8,7 +8,6 @@ compatibility: Designed for Claude Code. Portable across agentskills.io-complian
 # Gemini Delegate Skill
 
 Claude is the supervisor. Antigravity CLI (`agy`) or legacy Gemini CLI drafts and synthesizes. Claude reviews terminology, facts, tone, and decides what ships.
-
 ## Why use this instead of raw CLI calls
 
 This wrapper exists because the Google CLI backends have **three footguns** that silently break shipping tasks if you bypass it:
@@ -31,7 +30,6 @@ From a 6-round mixed-workload session (`awesome-agentic-ai-zh` 2026-05-14, see `
 | **Second-opinion review** (Claude wrote a draft; Gemini reads it) | ~5% extrapolated | Adversarial review on academic abstracts and prompt engineering output |
 | **Code generation** | 0% (skill not appropriate) | Use `codex-delegate` instead |
 | **Security-sensitive / final acceptance** | 0% (skill cannot help) | Claude direct |
-
 ### Anti-patterns this skill prevents
 
 - **F1**: `gemini -p "Read .ai/foo.md"` silently skips the brief because `.ai/` is gitignored. Prevented by the wrapper's stdin-pipe pattern (`cat .ai/foo.md | agy -m gemini-2.5-pro --yolo -` or `gemini -m gemini-2.5-pro --approval-mode yolo < .ai/foo.md`).
@@ -57,7 +55,6 @@ call, use one of these canonical stdin-pipe patterns and cap logs:
 
   cat .ai/gemini_task_<NNN>.md | agy -m gemini-2.5-pro --yolo - 2>&1 | head -c 10485760
   gemini -m gemini-2.5-pro --approval-mode yolo < .ai/gemini_task_<NNN>.md 2>&1 | head -c 10485760
-
 Optional mechanical enforcement: a PreToolUse hook on Bash that nudges raw
 `gemini -p` toward `Skill("gemini-delegate")`. Reference:
 https://github.com/WenyuChiou/dotfiles-claude/blob/main/hooks/check_codex_skill_routing.py
@@ -82,7 +79,6 @@ fi
 ```
 
 If neither command is found, stop and tell the user:
-
 > This skill needs Antigravity CLI (`agy`) or legacy Gemini CLI. Install Antigravity CLI with:
 >
 > ```bash
@@ -106,7 +102,6 @@ Do **not** prepare a task prompt, write a wrapper command, or fabricate a `resul
 Gemini CLI was deprecated for free/Pro/Ultra individual users on 2026-06-18. The wrapper now supports a dual-backend path: it uses `AGY_PATH`, then `GEMINI_PATH`, then `agy` on PATH, then `gemini` on PATH. Existing wrapper commands, task brief names, and `.ai/gemini_task_*.md` conventions stay unchanged.
 
 ## Hard rules
-
 These three are non-negotiable. The wrapper enforces them; if you write your own wrapper, preserve all three:
 
 1. **No `-C` flag**. `cd` into the target repo before invoking the backend. Neither `agy` nor `gemini` has `-C`.
@@ -123,8 +118,7 @@ Full routing table and examples: `references/delegation-targets.md`.
 
 ## Workflow
 
-1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
-
+1. **Brief**: write `.ai/gemini_task_<name>.md` with Context / Goal / Language & tone / Constraints / Acceptance. Template: `references/task-template.md`. For a drift-sensitive task (published report, bilingual mirror, long-context synthesis, second-opinion review) — where an invented fact, a slipped term, or a wrong language variant would hurt — also add the XML prompt blocks from `references/gemini-prompt-blocks.md` to the Goal/Language/Constraints. A tiny low-stakes draft does not need them. If the brief was queued by `agent-task-splitter` (from the `agent-collab-skills` marketplace), it lives at `.ai/gemini_task_<NNN>_<slug>.md`; read `.coord/plan.yml` for round context first.
 2. **Run**: from Claude Code Bash, invoke the wrapper from its install location. The command stays the same; the wrapper auto-detects `agy` or legacy `gemini`.
    ```bash
    bash ~/.claude/skills/gemini-delegate/scripts/run_gemini.sh \
@@ -144,7 +138,6 @@ Full routing table and examples: `references/delegation-targets.md`.
 4. **Publication review**: factual accuracy, terminology consistency, dates / proper nouns, banned phrasing, audience fit. Extended checklist: `references/review-checklist.md`.
 
 ## Output contract
-
 `.result.json` includes at minimum: `status` (success | verify_failed | fallback | error), `delegate` (`"agy"` or `"gemini"`), `model` (`"agy/<model>"` or `"gemini/<model>"`), `log_file`, `summary`, `risks`, `files_changed`, `tests_run`, `timestamp_utc`. Full schema and status semantics: `references/output-contract.md`.
 
 ## Common drift to watch
@@ -162,11 +155,11 @@ The model may drift terminology mid-document, over-translate proper nouns, miss 
 - PowerShell wrapper requires `$ErrorActionPreference` to NOT be `Stop` so backend stderr banners do not trip the catch block.
 
 ## See also
-
-- `references/delegation-targets.md` - when to use vs avoid
-- `references/wrapper.md` - full wrapper invocation, env vars, sentinels
-- `references/task-template.md` - CJK-aware task brief template
-- `references/output-contract.md` - full `.result.json` schema, status semantics, `.fallback_claude` quota sentinel
-- `references/review-checklist.md` - extended publication gate
-- `references/multi-agent.md` - leaf role in router/leaves architecture; when to route through `research-hub-multi-ai` or `agent-task-splitter`
-- `references/examples.md` - concrete invocation examples (long-context summary, CJK report, bilingual README, second-opinion review)
+- `references/delegation-targets.md` — when to use vs avoid
+- `references/wrapper.md` — full wrapper invocation, env vars, sentinels
+- `references/task-template.md` — CJK-aware task brief template
+- `references/gemini-prompt-blocks.md` — XML prompt blocks + recipes + anti-patterns for drift-sensitive briefs
+- `references/output-contract.md` — full `.result.json` schema, status semantics, `.fallback_claude` quota sentinel
+- `references/review-checklist.md` — extended publication gate
+- `references/multi-agent.md` — leaf role in router/leaves architecture; when to route through `research-hub-multi-ai` or `agent-task-splitter`
+- `references/examples.md` — concrete invocation examples (long-context summary, CJK report, bilingual README, second-opinion review)

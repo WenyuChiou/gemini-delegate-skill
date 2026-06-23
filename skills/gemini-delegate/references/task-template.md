@@ -46,3 +46,16 @@ Save the brief at `.ai/gemini_task_<name>.md`. Briefs are backend-agnostic; the 
 - Missing tone / register — Gemini defaults to mid-formal which is rarely right
 - Asking Gemini to "decide" something instead of synthesizing what's already in the sources
 - No acceptance file — wrapper can't verify output existed
+
+These are the failure modes of the *brief file*. The failure modes of the
+*task phrasing* (unlocked language variant, glossary as an abstract rule,
+review that drifts into a rewrite) are separate — see `gemini-prompt-blocks.md`.
+
+## Drift-sensitive tasks
+
+For a published report, bilingual mirror, long-context synthesis, or
+second-opinion review, the flat template above is not enough on its own. Add
+the composable XML prompt blocks (`<language_variant_lock>`,
+`<source_fidelity>`, `<glossary_grounding>`, `<reviewer_role>`, …) from
+`gemini-prompt-blocks.md` to the Goal/Language/Constraints. A tiny low-stakes
+draft does not need them.

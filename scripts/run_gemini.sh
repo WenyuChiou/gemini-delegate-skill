@@ -24,8 +24,7 @@ resolve_backend() {
         BACKEND_BIN="$AGY_PATH"
         BACKEND_NAME="agy"
         return 0
-    fi
-    if [[ -n "${GEMINI_PATH:-}" ]] && command -v "$GEMINI_PATH" >/dev/null 2>&1; then
+    fi    if [[ -n "${GEMINI_PATH:-}" ]] && command -v "$GEMINI_PATH" >/dev/null 2>&1; then
         BACKEND_BIN="$GEMINI_PATH"
         BACKEND_NAME="gemini"
         return 0
@@ -46,13 +45,40 @@ resolve_backend() {
     exit 1
 }
 
+# Snapshot the repo's changed-file set via `git status --porcelain`.
+# Returns empty when the path is not a git work tree (or git is absent), so
+# files_changed degrades to [] instead of failing the run.
+git_status_snapshot() {
+    git -C "$1" -c core.quotePath=false status --porcelain 2>/dev/null || true
+}
+# Diff two porcelain snapshots and emit a JSON array of paths that became
+# changed during the run. A file already dirty before the run, with an
+# unchanged porcelain status line, is intentionally not re-reported (it was
+# not this run's doing). Falls back to [] on any error.
+compute_files_changed_json() {
+    "$PYTHON_JSON_BIN" -c '
+import json, sys
+before = set(sys.argv[1].splitlines())
+after = set(sys.argv[2].splitlines())
+paths = set()
+for line in after - before:
+    entry = line[3:] if len(line) > 3 else ""
+    if " -> " in entry:                 # renamed: "old -> new"
+        entry = entry.split(" -> ", 1)[1]
+    entry = entry.strip().strip(chr(34))
+    if entry:
+        paths.add(entry)
+print(json.dumps(sorted(paths)))
+' "$1" "$2" 2>/dev/null || printf '[]'
+}
+
 write_result_json() {
     local status="$1"
     local model="$2"
     local summary="$3"
+    local files_changed_json="${4:-[]}"
     local timestamp
     timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
     {
         printf '{\n'
         printf '  "status": %s,\n' "$(printf '%s' "$status" | json_escape)"
@@ -61,7 +87,7 @@ write_result_json() {
         printf '  "log_file": %s,\n' "$(printf '%s' "$LOG_PATH" | json_escape)"
         printf '  "summary": %s,\n' "$(printf '%s' "$summary" | json_escape)"
         printf '  "risks": [],\n'
-        printf '  "files_changed": [],\n'
+        printf '  "files_changed": %s,\n' "$files_changed_json"
         printf '  "tests_run": [],\n'
         printf '  "timestamp_utc": %s\n' "$(printf '%s' "$timestamp" | json_escape)"
         printf '}\n'
@@ -76,7 +102,6 @@ MODEL="gemini-2.5-pro"
 LOG_FILE=""
 VERIFY_FILES=()
 VERIFY_SENTINEL=""
-
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --prompt)           PROMPT="$2";          shift 2 ;;
@@ -103,7 +128,6 @@ RESULT_PATH="$LOG_PATH.result.json"
 
 mkdir -p "$AI_DIR"
 rm -f "$FALLBACK_PATH" "$DONE_PATH" "$ERROR_PATH" "$RESULT_PATH"
-
 is_quota_error() {
     local output="$1"
     local exit_code="$2"
@@ -135,8 +159,12 @@ printf '%s' "$PROMPT" > "$PROMPT_FILE"
 
 OUTPUT=""
 EXIT_CODE=0
-
 resolve_backend
+
+# Snapshot the repo before the run so files_changed can attribute edits to
+# this run only. The wrapper's own log / sentinel / result files are written
+# after the after-snapshot, so they never leak in.
+CHANGED_BEFORE="$(git_status_snapshot "$REPO")"
 
 pushd "$REPO" > /dev/null
 if [[ "$BACKEND_NAME" == "agy" ]]; then
@@ -147,6 +175,8 @@ fi
 popd > /dev/null
 rm -f "$PROMPT_FILE"
 
+CHANGED_AFTER="$(git_status_snapshot "$REPO")"
+FILES_CHANGED_JSON="$(compute_files_changed_json "$CHANGED_BEFORE" "$CHANGED_AFTER")"
 if is_quota_error "$OUTPUT" "$EXIT_CODE"; then
     echo "$BACKEND_NAME quota/rate-limit exceeded; creating .fallback_claude sentinel for Claude to handle" >&2
     {
@@ -156,17 +186,16 @@ if is_quota_error "$OUTPUT" "$EXIT_CODE"; then
     echo "ALL_QUOTA_EXCEEDED|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
     echo "FALLBACK_TO_CLAUDE|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FALLBACK_PATH"
     echo "FALLBACK|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DONE_PATH"
-    write_result_json "fallback" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME quota exceeded; Claude must take over."
+    write_result_json "fallback" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME quota exceeded; Claude must take over." "$FILES_CHANGED_JSON"
     exit 0
 fi
 
 if [[ "$EXIT_CODE" -ne 0 ]]; then
     echo "$BACKEND_NAME hard failure (exit $EXIT_CODE)" >&2
     echo "$OUTPUT" > "$ERROR_PATH"
-    write_result_json "error" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited with a hard failure."
+    write_result_json "error" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited with a hard failure." "$FILES_CHANGED_JSON"
     exit 1
 fi
-
 if [[ "${#VERIFY_FILES[@]}" -gt 0 ]]; then
     VERIFY_FAIL=0
     for f in "${VERIFY_FILES[@]}"; do
@@ -187,7 +216,7 @@ if [[ "${#VERIFY_FILES[@]}" -gt 0 ]]; then
             echo "$OUTPUT"
         } > "$LOG_PATH"
         echo "VERIFY_FAILED|$BACKEND_NAME/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ERROR_PATH"
-        write_result_json "verify_failed" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited, but required output files failed verification."
+        write_result_json "verify_failed" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME exited, but required output files failed verification." "$FILES_CHANGED_JSON"
         exit 1
     fi
 fi
@@ -197,4 +226,4 @@ fi
     echo "$OUTPUT"
 } > "$LOG_PATH"
 echo "DONE|$BACKEND_NAME/$MODEL|$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$DONE_PATH"
-write_result_json "success" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME completed successfully. Claude must still review facts, terminology, and tone."
+write_result_json "success" "$BACKEND_NAME/$MODEL" "$BACKEND_NAME completed successfully. Claude must still review facts, terminology, and tone." "$FILES_CHANGED_JSON"
