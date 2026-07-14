@@ -1,6 +1,15 @@
 # Gemini Delegate Skill
 
-> Now supports both **Antigravity CLI** (`agy`) and legacy **Gemini CLI**.
+> **Status (2026-07): legacy lane, gemini backend fails closed.** The
+> legacy Gemini CLI path is deprecated since 2026-06-18 — Google removed
+> consumer/individual-tier CLI auth, after which the non-interactive CLI
+> silently emits pseudo-code instead of doing the work; the wrapper now
+> refuses to run it (override: `GEMINI_DEPRECATED_OVERRIDE=1`). The `agy`
+> (Antigravity CLI) backend still works here, but the maintained,
+> evidence-backed Antigravity lane is
+> [**antigravity-delegate**](https://github.com/WenyuChiou/antigravity-delegate)
+> (promoted 2026-07-11 on a pre-registered k=5 reliability gate). This repo
+> is kept as lesson material and for the agy-via-gemini-delegate history.
 >
 > [Traditional Chinese](README_zh-TW.md)
 
@@ -106,11 +115,16 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy --version
 ```
 
-Enterprise / Cloud users who still have Gemini CLI access can use the legacy fallback:
+The legacy Gemini CLI fallback is **fail-closed since 2026-06-18**: the
+wrapper refuses to invoke a `gemini` backend and exits 1, because the
+killed consumer tier makes the non-interactive CLI silently emit
+pseudo-code. Enterprise/Cloud users who have verified their tier still
+works must opt in explicitly:
 
 ```bash
 npm install -g @google/gemini-cli
 gemini --version
+GEMINI_DEPRECATED_OVERRIDE=1 bash scripts/run_gemini.sh --prompt "..."
 ```
 
 You can also point the wrapper at explicit binaries:
@@ -124,7 +138,7 @@ Detection order is `AGY_PATH`, `GEMINI_PATH`, `agy` on PATH, then `gemini` on PA
 
 ## Migration from Gemini CLI
 
-Gemini CLI was deprecated for free/Pro/Ultra individual users on 2026-06-18. The wrapper now auto-detects `agy` first while keeping legacy Gemini CLI support for enterprise users. Existing wrapper commands, file names, and `.ai/gemini_task_*.md` task brief conventions do not change. Set `AGY_PATH` to force a specific Antigravity CLI binary.
+Gemini CLI was deprecated for free/Pro/Ultra individual users on 2026-06-18. The wrapper auto-detects `agy` first; the legacy Gemini CLI path is fail-closed (FATAL + exit 1) and requires an explicit `GEMINI_DEPRECATED_OVERRIDE=1` from enterprise users who have verified their tier still works. Existing wrapper commands, file names, and `.ai/gemini_task_*.md` task brief conventions do not change. Set `AGY_PATH` to force a specific Antigravity CLI binary.
 
 ## License
 

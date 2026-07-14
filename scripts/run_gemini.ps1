@@ -149,6 +149,13 @@ try {
         $backend = Resolve-Backend
         $backendBin = $backend.Bin
         $backendName = $backend.Name
+        # --- Legacy Gemini CLI deprecation guard (2026-06-18) ---
+        # Consumer-tier CLI auth killed by Google (IneligibleTierError /
+        # UNSUPPORTED_CLIENT); non-interactive gemini then silently emits
+        # pseudo-code. Fail closed on the gemini fallback; agy unaffected.
+        if ($backendName -eq "gemini" -and -not $env:GEMINI_DEPRECATED_OVERRIDE) {
+            throw "FATAL: legacy Gemini CLI backend is deprecated (2026-06-18) - it silently emits pseudo-code under the killed consumer tier. Use the agy backend (install: https://antigravity.google/cli/install.sh), or the evidence-backed antigravity-delegate skill (https://github.com/WenyuChiou/antigravity-delegate). Override only if the tier is restored: GEMINI_DEPRECATED_OVERRIDE=1"
+        }
         if ($backendName -eq "agy") {
             $output = Get-Content $promptFile -Raw -Encoding utf8 | & $backendBin -m $Model --yolo - 2>&1 | Out-String
         }

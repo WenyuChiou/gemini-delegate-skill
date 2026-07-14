@@ -1,6 +1,14 @@
 # Gemini Delegate Skill
 
-> 現在同時支援 **Antigravity CLI** (`agy`) 與舊版 **Gemini CLI**。
+> **狀態(2026-07):legacy 通道,gemini 後端已 fail-closed。** 舊版
+> Gemini CLI 路徑自 2026-06-18 起棄用——Google 移除了消費者/個人層級的
+> CLI 認證,此後非互動式 CLI 會**靜默輸出偽代碼**而非真正執行;wrapper
+> 現在會直接拒絕執行它(覆寫:`GEMINI_DEPRECATED_OVERRIDE=1`)。`agy`
+> (Antigravity CLI)後端在此仍可用,但持續維護、有實證背書的
+> Antigravity 通道是
+> [**antigravity-delegate**](https://github.com/WenyuChiou/antigravity-delegate)
+> (2026-07-11 通過預註冊 k=5 可靠性閘門後晉升)。本 repo 保留作為課程
+> 教材與 agy-via-gemini-delegate 的歷史紀錄。
 >
 > [English](README.md)
 
@@ -106,11 +114,15 @@ curl -fsSL https://antigravity.google/cli/install.sh | bash
 agy --version
 ```
 
-仍有 Gemini CLI 權限的企業 / Cloud 使用者，可以使用舊版 fallback：
+舊版 Gemini CLI fallback 自 **2026-06-18 起 fail-closed**：wrapper 會拒絕
+呼叫 `gemini` 後端並以 exit 1 結束，因為被停用的消費者層級會讓非互動式
+CLI 靜默輸出偽代碼。已確認自身層級仍可用的企業 / Cloud 使用者，必須明確
+opt-in：
 
 ```bash
 npm install -g @google/gemini-cli
 gemini --version
+GEMINI_DEPRECATED_OVERRIDE=1 bash scripts/run_gemini.sh --prompt "..."
 ```
 
 也可以指定 wrapper 使用的二進位檔：
@@ -124,7 +136,7 @@ export GEMINI_PATH=/path/to/gemini
 
 ## 從 Gemini CLI 遷移
 
-Gemini CLI 自 2026-06-18 起已不再支援 free/Pro/Ultra 個人使用者。Wrapper 現在採用雙後端設計，會先自動偵測 `agy`，同時保留企業使用者需要的舊版 Gemini CLI 支援。既有 wrapper 指令、檔名，以及 `.ai/gemini_task_*.md` 任務 brief 慣例都不需要更改。若要強制使用特定 Antigravity CLI，請設定 `AGY_PATH`。
+Gemini CLI 自 2026-06-18 起已不再支援 free/Pro/Ultra 個人使用者。Wrapper 會先自動偵測 `agy`;舊版 Gemini CLI 路徑已 fail-closed(FATAL + exit 1),已確認層級仍可用的企業使用者需明確設定 `GEMINI_DEPRECATED_OVERRIDE=1` 才能使用。既有 wrapper 指令、檔名，以及 `.ai/gemini_task_*.md` 任務 brief 慣例都不需要更改。若要強制使用特定 Antigravity CLI，請設定 `AGY_PATH`。
 
 ## License
 

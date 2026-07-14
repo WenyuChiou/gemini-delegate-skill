@@ -57,6 +57,7 @@ PowerShell parameters: `-Prompt` (required), `-Repo`, `-Model`, `-LogFile`, `-Ve
 - `AGY_PATH` - override the Antigravity CLI executable
 - `GEMINI_PATH` - override the legacy Gemini CLI executable
 - `PYTHON_BIN` (bash only) - override Python used for JSON escaping
+- `GEMINI_DEPRECATED_OVERRIDE` - the legacy gemini backend fail-closes (FATAL, exit 1) since 2026-06-18; set to `1` ONLY if you have verified your enterprise tier still works
 
 ## Sentinels written by the wrapper
 

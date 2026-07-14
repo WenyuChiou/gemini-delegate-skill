@@ -162,6 +162,17 @@ OUTPUT=""
 EXIT_CODE=0
 resolve_backend
 
+# --- Legacy Gemini CLI deprecation guard (2026-06-18) ---
+# Google killed consumer/individual-tier CLI auth (IneligibleTierError /
+# UNSUPPORTED_CLIENT); the non-interactive gemini CLI then SILENTLY emits
+# pseudo-code instead of doing the work. Fail closed on the gemini
+# fallback; the agy backend is unaffected. Set GEMINI_DEPRECATED_OVERRIDE=1
+# only if Google restores the tier.
+if [[ "$BACKEND_NAME" == "gemini" && -z "${GEMINI_DEPRECATED_OVERRIDE:-}" ]]; then
+    echo "FATAL: legacy Gemini CLI backend is deprecated (2026-06-18) - it silently emits pseudo-code under the killed consumer tier. Use the agy backend (install: https://antigravity.google/cli/install.sh), or the evidence-backed antigravity-delegate skill (https://github.com/WenyuChiou/antigravity-delegate). Override only if the tier is restored: GEMINI_DEPRECATED_OVERRIDE=1" >&2
+    exit 1
+fi
+
 # Snapshot the repo before the run so files_changed can attribute edits to
 # this run only. The wrapper's own log / sentinel / result files are written
 # after the after-snapshot, so they never leak in.

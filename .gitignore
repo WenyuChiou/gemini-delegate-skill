@@ -3,3 +3,6 @@ __pycache__/
 .claude/
 *.bak
 test_output.txt
+test_stdout.txt
+test_stderr.txt
+.ai/

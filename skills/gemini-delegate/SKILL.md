@@ -7,7 +7,7 @@ compatibility: Designed for Claude Code. Portable across agentskills.io-complian
 
 # Gemini Delegate Skill
 
-Claude is the supervisor. Antigravity CLI (`agy`) or legacy Gemini CLI drafts and synthesizes. Claude reviews terminology, facts, tone, and decides what ships.
+Claude is the supervisor. Antigravity CLI (`agy`) drafts and synthesizes; the legacy Gemini CLI backend is **fail-closed since 2026-06-18** (the wrapper refuses it with FATAL + exit 1 unless `GEMINI_DEPRECATED_OVERRIDE=1` is explicitly set — the killed consumer tier makes non-interactive gemini silently emit pseudo-code). Claude reviews terminology, facts, tone, and decides what ships.
 ## Why use this instead of raw CLI calls
 
 This wrapper exists because the Google CLI backends have **three footguns** that silently break shipping tasks if you bypass it:
@@ -65,16 +65,19 @@ The hook excludes the canonical stdin-pipe pattern, so legitimate raw use passes
 
 ## Prerequisite check (do this first)
 
-Before producing any task file, wrapper command, or handoff prompt, verify that at least one supported backend is on `$PATH`, checking `agy` first:
+Before producing any task file, wrapper command, or handoff prompt, verify that a WORKING backend is on `$PATH` — only `agy` satisfies this by default; a `gemini` binary alone does NOT (the wrapper fail-closes on it):
 
 ```bash
 if command -v agy >/dev/null 2>&1; then
   agy --version
 elif command -v gemini >/dev/null 2>&1; then
-  gemini --version
+  echo "gemini found, but the legacy backend is FAIL-CLOSED (2026-06-18) —"
+  echo "the wrapper will refuse it (FATAL, exit 1) unless you have VERIFIED"
+  echo "enterprise-tier access and set GEMINI_DEPRECATED_OVERRIDE=1."
+  echo "Preferred: install Antigravity CLI: curl -fsSL https://antigravity.google/cli/install.sh | bash"
 else
   echo "Install Antigravity CLI: curl -fsSL https://antigravity.google/cli/install.sh | bash"
-  echo "Enterprise fallback: npm install -g @google/gemini-cli"
+  echo "(Legacy gemini is fail-closed by default — see the note below.)"
 fi
 ```
 
@@ -86,12 +89,11 @@ If neither command is found, stop and tell the user:
 > agy --version
 > ```
 >
-> Enterprise users who still have Gemini CLI access can install the legacy fallback:
->
-> ```bash
-> npm install -g @google/gemini-cli
-> gemini --version
-> ```
+> The legacy Gemini CLI is NOT a working fallback: the wrapper fail-closes
+> on a `gemini` backend (FATAL, exit 1) because the killed consumer tier
+> makes it silently emit pseudo-code. Only an enterprise user who has
+> VERIFIED their tier still works may opt in with
+> `GEMINI_DEPRECATED_OVERRIDE=1`.
 >
 > Then re-run your request.
 
@@ -99,7 +101,7 @@ Do **not** prepare a task prompt, write a wrapper command, or fabricate a `resul
 
 ## Migration from Gemini CLI
 
-Gemini CLI was deprecated for free/Pro/Ultra individual users on 2026-06-18. The wrapper now supports a dual-backend path: it uses `AGY_PATH`, then `GEMINI_PATH`, then `agy` on PATH, then `gemini` on PATH. Existing wrapper commands, task brief names, and `.ai/gemini_task_*.md` conventions stay unchanged.
+Gemini CLI was deprecated for free/Pro/Ultra individual users on 2026-06-18. The wrapper detects `AGY_PATH`, then `GEMINI_PATH`, then `agy` on PATH, then `gemini` on PATH — but any `gemini` resolution fail-closes (FATAL + exit 1) unless `GEMINI_DEPRECATED_OVERRIDE=1` is set. Existing wrapper commands, task brief names, and `.ai/gemini_task_*.md` conventions stay unchanged. For the maintained, evidence-backed Antigravity lane, prefer [antigravity-delegate](https://github.com/WenyuChiou/antigravity-delegate).
 
 ## Hard rules
 These three are non-negotiable. The wrapper enforces them; if you write your own wrapper, preserve all three:
@@ -147,7 +149,7 @@ The model may drift terminology mid-document, over-translate proper nouns, miss 
 ## Compatibility
 
 - Antigravity CLI (`agy`) is the preferred backend for free/Pro/Ultra individual users. It reads stdin with a trailing `-` and uses `--yolo` for approval.
-- Legacy `@google/gemini-cli` remains supported for enterprise/Cloud users. Tested with `@google/gemini-cli` 0.38.2 (May 2026). Approval modes available: `default`, `auto_edit`, `yolo`, `plan`.
+- Legacy `@google/gemini-cli` is fail-closed by the wrapper (FATAL + exit 1) since 2026-06-18; enterprise/Cloud users who have verified their tier must set `GEMINI_DEPRECATED_OVERRIDE=1` to use it. Last tested working: `@google/gemini-cli` 0.38.2 (May 2026, pre-deprecation). Approval modes available: `default`, `auto_edit`, `yolo`, `plan`.
 - Default model: `gemini-2.5-pro` (override via `--model` or `-Model`). For long-form CJK quality, prefer the latest Pro model available on your CLI.
 - Backend detection order: `AGY_PATH`, `GEMINI_PATH`, `agy` on PATH, `gemini` on PATH.
 - Prompt MUST be piped via stdin. The wrapper handles the backend-specific stdin pattern.

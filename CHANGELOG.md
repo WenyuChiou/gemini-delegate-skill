@@ -12,6 +12,18 @@ the marketplace repo).
 
 ## [Unreleased]
 
+### Changed
+
+- **Legacy Gemini CLI backend now fails closed** (2026-07-14): both
+  wrappers refuse a `gemini` backend with FATAL + exit 1 unless
+  `GEMINI_DEPRECATED_OVERRIDE=1` is set — the consumer tier Google killed
+  on 2026-06-18 makes the non-interactive CLI silently emit pseudo-code.
+  The `agy` backend is unaffected. README (both locales), SKILL.md, and
+  `references/wrapper.md` updated consistently; status banner points to
+  the maintained, evidence-backed
+  [antigravity-delegate](https://github.com/WenyuChiou/antigravity-delegate)
+  lane.
+
 ### Added
 
 - `references/gemini-prompt-blocks.md` — composable XML prompt blocks
